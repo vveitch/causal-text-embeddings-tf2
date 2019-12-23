@@ -36,7 +36,7 @@ in order to keep consistent with BERT paper.
     24-layer, 1024-hidden, 16-heads, 340M parameters
 *   **[`BERT-Large, Cased (Whole Word Masking)`](https://storage.googleapis.com/cloud-tpu-checkpoints/bert/tf_20/wwm_cased_L-24_H-1024_A-16.tar.gz)**:
     24-layer, 1024-hidden, 16-heads, 340M parameters
-*   **[`BERT-Base, Uncased`](https://storage.googleapis.com/cloud-tpu-checkpoints/bert/tf_20/uncased_L-12_H-768_A-12.tar.gz)**:
+*   **[`BERT-Base, Uncased`](`https://storage.googleapis.com/cloud-tpu-checkpoints/bert/tf_20/uncased_L-12_H-768_A-12.tar.gz`)**:
     12-layer, 768-hidden, 12-heads, 110M parameters
 *   **[`BERT-Large, Uncased`](https://storage.googleapis.com/cloud-tpu-checkpoints/bert/tf_20/uncased_L-24_H-1024_A-16.tar.gz)**:
     24-layer, 1024-hidden, 16-heads, 340M parameters

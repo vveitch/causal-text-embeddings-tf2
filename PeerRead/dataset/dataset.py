@@ -486,7 +486,7 @@ def main():
     # for easy debugging
     # filename = "../../dat/PeerRead/proc/acl_2017.tf_record"
     # filename = glob.glob('/home/victor/Documents/causal-spe-embeddings/dat/PeerRead/proc/*.tf_record')
-    filename = '/home/victor/Documents/bert2/dat/PeerRead/proc/arxiv-all.tf_record'
+    filename = 'dat/PeerRead/proc/arxiv-all.tf_record'
 
     bert_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/1",
                                 trainable=True)
