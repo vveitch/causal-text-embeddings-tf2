@@ -1,6 +1,4 @@
 #!/bin/bash
-
-
 #SBATCH -A sml
 #SBATCH -c 12
 #SBATCH -t 72:00:00
@@ -9,7 +7,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --nodelist=janice
 
-# source ct-2
+conda activate ct-2
+
 export INIT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/uncased_L-12_H-768_A-12
 export INIT_FILE=$INIT_DIR/checkpoint
 export BERT_BASE_DIR=$INIT_DIR
