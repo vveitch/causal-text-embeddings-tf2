@@ -11,7 +11,7 @@ import pandas as pd
 from scipy.special import logit, expit
 
 import tensorflow as tf
-import tensorflow_hub as hub
+#import tensorflow_hub as hub
 
 try:
     import mkl_random as random
@@ -488,9 +488,10 @@ def main():
     # filename = glob.glob('/home/victor/Documents/causal-spe-embeddings/dat/PeerRead/proc/*.tf_record')
     filename = 'dat/PeerRead/proc/arxiv-all.tf_record'
 
-    bert_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/1",
-                                trainable=True)
-    vocab_file = bert_layer.resolved_object.vocab_file.asset_path.numpy()
+    # bert_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/1",
+    #                             trainable=True)
+    # vocab_file = bert_layer.resolved_object.vocab_file.asset_path.numpy()
+    vocab_file = 'pre-trained/uncased_L-12_H-768_A-12/vocab.txt'
 
     seed = 0
     tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
