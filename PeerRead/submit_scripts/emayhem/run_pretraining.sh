@@ -20,6 +20,8 @@ python -m PeerRead.model.run_pretraining \
 --vocab_file=$BERT_BASE_DIR/vocab.txt \
 --init_checkpoint=INIT_FILE \
 --input_files=$DATA_FILE \
+--model_dir=$OUTPUT_DIR/PeerRead \
+--num_train_epochs=100 \
 --seed=0
 
 # --strategy_type=mirror \
