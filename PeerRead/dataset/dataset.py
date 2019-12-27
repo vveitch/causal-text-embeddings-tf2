@@ -11,7 +11,8 @@ import pandas as pd
 from scipy.special import logit, expit
 
 import tensorflow as tf
-#import tensorflow_hub as hub
+
+# import tensorflow_hub as hub
 
 try:
     import mkl_random as random
@@ -135,50 +136,14 @@ def make_input_id_masker(tokenizer, seed):
     return masker
 
 
-def make_bert_pretraining_compatible():
-    def bert_pretraining_compatible(data):
-        """
-        Change feature naming to be consistent w/ what's expected by pretrained bert model,
-        filter down to features used by pretraining, and
-        put data into expected (features, labels) format
-        """
-        # data['input_word_ids'] = data.pop('maybe_masked_input_ids')
-        # data['input_mask'] = data.pop('token_mask')
-
-        x = {
-            'input_word_ids': data['maybe_masked_input_ids'],
-            'input_mask': data['token_mask'],
-            # 'segment_ids': data['segment_ids'],
-            'input_type_ids': tf.zeros_like(data['token_mask']),
-            'masked_lm_positions': data['masked_lm_positions'],
-            'masked_lm_ids': data['masked_lm_ids'],
-            'masked_lm_weights': data['masked_lm_weights'],
-            # next_sentence_label = 1 if instance.is_random_next else 0
-            'next_sentence_labels': tf.constant([0], tf.int32)
-        }
-
-        y = data['masked_lm_weights']
-
-        return x, y
-
-    return bert_pretraining_compatible
-
-
-def _select_data_from_record(record):
-    """Filter out features to use for pretraining."""
-    x = {
-        'input_word_ids': record['input_ids'],
-        'input_mask': record['input_mask'],
-        'segment_ids': record['segment_ids'],
-        'masked_lm_positions': record['masked_lm_positions'],
-        'masked_lm_ids': record['masked_lm_ids'],
-        'masked_lm_weights': record['masked_lm_weights'],
-        'next_sentence_labels': record['next_sentence_labels'],
+def null_masker(data):
+    return {
+        **data,
+        'maybe_masked_input_ids': data['token_ids'],
+        'masked_lm_positions': tf.zeros_like(data['token_ids']),
+        'masked_lm_ids': tf.zeros_like(data['token_ids']),
+        'masked_lm_weights': tf.zeros_like(data['token_ids'])
     }
-
-    y = record['masked_lm_weights']
-
-    return (x, y)
 
 
 def make_extra_feature_cleaning():
@@ -204,14 +169,22 @@ def make_extra_feature_cleaning():
     return extra_feature_cleaning
 
 
-def make_label():
+def make_real_labeler(treatment_name, outcome_name):
+    def labeler(data):
+        return {**data, 'outcome': data[outcome_name], 'treatment': data[treatment_name], 'y0': tf.zeros([1]),
+                'y1': tf.zeros([1])}
+
+    return labeler
+
+
+def make_null_labeler():
     """
-    Do something slightly nuts for testing purposes
-    :return:
+    labeler function that returns meaningless labels. Convenient for pre-training, where the labels are totally unused
+        :return:
     """
 
     def labeler(data):
-        return {**data, 'label_ids': data['accepted']}
+        return {**data, 'outcome': tf.zeros([1]), 'y0': tf.zeros([1]), 'y1': tf.zeros([1]), 'treatment': tf.zeros([1])}
 
     # def wacky_labeler(data):
     #     label_ids = tf.greater_equal(data['num_authors'], 4)
@@ -221,7 +194,7 @@ def make_label():
     return labeler
 
 
-def outcome_sim(beta0, beta1, gamma, treatment, confounding, noise, setting="simple"):
+def _outcome_sim(beta0, beta1, gamma, treatment, confounding, noise, setting="simple"):
     if setting == "simple":
         y0 = beta1 * confounding
         y1 = beta0 + y0
@@ -272,15 +245,15 @@ def make_buzzy_based_simulated_labeler(treat_strength, con_strength, noise_level
 
         noise = tf.gather(all_noise, index)
 
-        y, y0, y1 = outcome_sim(treat_strength, con_strength, noise_level, treatment, confounding, noise,
-                                setting=setting)
+        y, y0, y1 = _outcome_sim(treat_strength, con_strength, noise_level, treatment, confounding, noise,
+                                 setting=setting)
         simulated_prob = tf.nn.sigmoid(y)
         y0 = tf.nn.sigmoid(y0)
         y1 = tf.nn.sigmoid(y1)
         threshold = tf.gather(all_threshholds, index)
         simulated_outcome = tf.cast(tf.greater(simulated_prob, threshold), tf.int32)
 
-        return {**data, 'outcome': simulated_outcome, 'y0': y0, 'y1': y1}
+        return {**data, 'outcome': simulated_outcome, 'y0': y0, 'y1': y1, 'treatment': treatment}
 
     return labeler
 
@@ -310,8 +283,8 @@ def make_propensity_based_simulated_labeler(treat_strength, con_strength, noise_
         confounding = 3.0 * (tf.gather(all_propensity_scores, index_hack) - 0.25)
         noise = tf.gather(all_noise, index_hack)
 
-        y, y0, y1 = outcome_sim(treat_strength, con_strength, noise_level, tf.cast(treatment, tf.float32), confounding,
-                                noise, setting=setting)
+        y, y0, y1 = _outcome_sim(treat_strength, con_strength, noise_level, tf.cast(treatment, tf.float32), confounding,
+                                 noise, setting=setting)
         simulated_prob = tf.nn.sigmoid(y)
         y0 = tf.nn.sigmoid(y0)
         y1 = tf.nn.sigmoid(y1)
@@ -377,7 +350,50 @@ def make_split_document_labels(num_splits, dev_splits, test_splits):
     return fn
 
 
-def dataset_processing(dataset, parser, masker, labeler, is_training, num_splits, dev_splits, test_splits, batch_size,
+def _make_bert_compatifier(is_pretraining):
+    """
+    Makes a parser to change feature naming to be consistent w/ what's expected by pretrained bert model, i.e. filter
+    down to only features used as bert input, and put data into expected (features, labels) format
+    """
+
+    def bert_compatibility(data):
+        # data['input_word_ids'] = data.pop('maybe_masked_input_ids')
+        # data['input_mask'] = data.pop('token_mask')
+
+        if is_pretraining:
+            x = {
+                'input_word_ids': data['maybe_masked_input_ids'],
+                'input_mask': data['token_mask'],
+                'input_type_ids': tf.zeros_like(data['token_mask']), # segment ids
+                'masked_lm_positions': data['masked_lm_positions'],
+                'masked_lm_ids': data['masked_lm_ids'],
+                'masked_lm_weights': data['masked_lm_weights'],
+                # next_sentence_label = 1 if instance.is_random_next else 0
+                'next_sentence_labels': tf.constant([0], tf.int32)
+            }
+
+            y = data['masked_lm_weights']
+
+        else:
+            x = {
+                'input_word_ids': data['maybe_masked_input_ids'],
+                'input_mask': data['token_mask'],
+                'input_type_ids': tf.zeros_like(data['token_mask']),  # segment ids
+            }
+
+            y = {'outcome': data['outcome'], 'treatment': data['treatment'],
+                 'in_dev': data['in_dev'], 'in_test': data['in_test'], 'in_train': data['in_train'],
+                 'y0': data['y0'], 'y1': data['y1']}
+
+        return x, y
+
+    return bert_compatibility
+
+
+def dataset_processing(dataset, parser, masker, labeler,
+                       is_pretraining, is_training,
+                       num_splits, dev_splits, test_splits,
+                       batch_size,
                        filter_test=False,
                        shuffle_buffer_size=100):
     """
@@ -388,6 +404,7 @@ def dataset_processing(dataset, parser, masker, labeler, is_training, num_splits
     parser function, read the examples, should be based on tf.parse_single_example
     masker function, should provide Bert style masking
     labeler function, produces labels
+    is_pretraining whether to parse as pre-training (if false, classification)
     is_training
     num_splits
     censored_split
@@ -407,13 +424,14 @@ def dataset_processing(dataset, parser, masker, labeler, is_training, num_splits
     data_processing = compose(parser,  # parse from tf_record
                               labeler,  # add a label (unused downstream at time of comment)
                               make_split_document_labels(num_splits, dev_splits, test_splits),  # censor some labels
-                              masker)  # Bert style token masking for unsupervised training
+                              masker,  # Bert style token masking for unsupervised training
+                              _make_bert_compatifier(is_pretraining))  # Limit features to those expected by BERT model
 
     dataset = dataset.map(data_processing, 4)
 
     if filter_test:
         def filter_test_fn(data):
-            return tf.equal(data['in_test'], 1)
+            return tf.equal(data[1]['in_test'], 1)
 
         dataset = dataset.filter(filter_test_fn)
 
@@ -427,7 +445,10 @@ def dataset_processing(dataset, parser, masker, labeler, is_training, num_splits
 
 def make_input_fn_from_file(input_files_or_glob, seq_length,
                             num_splits, dev_splits, test_splits,
-                            tokenizer, is_training,
+                            tokenizer,
+                            is_training,
+                            is_pretraining=False,
+                            do_masking=True,
                             filter_test=False,
                             shuffle_buffer_size=100, seed=0, labeler=None):
     input_files = []
@@ -435,7 +456,12 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
         input_files.extend(tf.io.gfile.glob(input_pattern))
 
     if labeler is None:
-        labeler = make_label()
+        labeler = make_null_labeler()
+
+    if do_masking:
+        masker = make_input_id_masker(tokenizer, seed)  # produce masked subsets for unsupervised training
+    else:
+        masker = null_masker
 
     def input_fn(params):
         batch_size = params["batch_size"]
@@ -444,26 +470,22 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
             dataset = tf.data.Dataset.from_tensor_slices(tf.constant(input_files))
             dataset = dataset.repeat()
             dataset = dataset.shuffle(buffer_size=len(input_files))
-            cycle_length = min(4, len(input_files))
 
         else:
             dataset = tf.data.Dataset.from_tensor_slices(tf.constant(input_files))
-            cycle_length = 1  # go through the datasets in a deterministic order
 
         # make the record parsing ops
         max_abstract_len = seq_length
 
         parser = make_parser(max_abstract_len)  # parse the tf_record
         parser = compose(parser, make_extra_feature_cleaning())
-        masker = make_input_id_masker(tokenizer, seed)  # produce masked subsets for unsupervised training
-        masker = compose(masker, make_bert_pretraining_compatible())  # change feature naming to match modeling
 
         # for use with interleave
         def _dataset_processing(input):
             input_dataset = tf.data.TFRecordDataset(input)
             processed_dataset = dataset_processing(input_dataset,
                                                    parser, masker, labeler,
-                                                   is_training,
+                                                   is_pretraining, is_training,
                                                    num_splits, dev_splits, test_splits,
                                                    batch_size, filter_test, shuffle_buffer_size)
             return processed_dataset
@@ -493,7 +515,6 @@ def main():
     # vocab_file = bert_layer.resolved_object.vocab_file.asset_path.numpy()
     vocab_file = 'pre-trained/uncased_L-12_H-768_A-12/vocab.txt'
 
-    seed = 0
     tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
 
     num_splits = 10
@@ -505,27 +526,13 @@ def main():
     labeler = make_buzzy_based_simulated_labeler(0.5, 5.0, 0.0, 'simple',
                                                  seed=0)
 
-    # base_propensities_path = '/home/victor/electric_mayhem_logs/scratch/peerread/buzzy_based_sim/modesimple/beta00.25.beta11.0.gamma0.0/split0/predict/test_results.tsv'
-    # output = pd.read_csv(base_propensities_path, '\t')
-    # base_propensity_scores = np.concatenate([output['treatment_probability'].values, np.zeros(8)])
-    # example_indices = output['index'].values
-    #
-    # labeler = make_propensity_based_simulated_labeler(treat_strength=0.25,
-    #                                                   con_strength=1.0,
-    #                                                   noise_level=0.0,
-    #                                                   base_propensity_scores=base_propensity_scores,
-    #                                                   example_indices=example_indices,
-    #                                                   exogeneous_con=0.,
-    #                                                   setting="simple",
-    #                                                   seed=0)
-    # labeler = None
-
     input_dataset_from_filenames = make_input_fn_from_file(filename,
                                                            250,
                                                            num_splits,
                                                            dev_splits,
                                                            test_splits,
                                                            tokenizer,
+                                                           do_masking=False,
                                                            is_training=True,
                                                            filter_test=False,
                                                            shuffle_buffer_size=25000,
@@ -539,7 +546,9 @@ def main():
     for val in dataset.take(1):
         sample = val
 
-    print(sample[0]['masked_lm_ids'])
+    sample = next(iter(dataset))
+
+    # print(sample[0]['masked_lm_ids'])
 
 
 if __name__ == "__main__":

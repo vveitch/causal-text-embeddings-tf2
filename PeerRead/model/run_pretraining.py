@@ -138,7 +138,6 @@ def run_customized_training(strategy,
     tokenizer = tokenization.FullTokenizer(
         vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
-    # TODO: very unsure about this... changed from estimator setup
     def train_input_fn():
         train_input_fn = make_input_fn_from_file(
                     input_files_or_glob=FLAGS.input_files,
@@ -147,6 +146,7 @@ def run_customized_training(strategy,
                     dev_splits=[2],
                     test_splits=[2],
                     tokenizer=tokenizer,
+                    is_pretraining=make_input_fn_from_file,
                     is_training=True,
                     shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
                     seed=FLAGS.seed,
