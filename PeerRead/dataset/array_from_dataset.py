@@ -12,7 +12,7 @@ try:
 except ImportError:
     import numpy.random as random
 
-import bert.tokenization as tokenization
+import nlp.bert.tokenization as tokenization
 from PeerRead.dataset.dataset import make_input_fn_from_file, make_buzzy_based_simulated_labeler
 
 
@@ -39,6 +39,7 @@ def dataset_fn_to_df(dataset_fn):
     df = pd.DataFrame(samples)
 
     return df
+
 
 def buzzy_title_based_sim_dfs(treat_strength, con_strength, noise_level, setting="simple", seed=0,
                             base_output_dir='../dat/sim/peerread_buzzytitle_based/'):
@@ -80,6 +81,7 @@ def main():
 
     buzzy_title_based_sim_dfs(treat_strength=beta0, con_strength=beta1, noise_level=gamma, setting=mode, seed=0,
                             base_output_dir=base_output_dir)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

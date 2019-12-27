@@ -18,7 +18,7 @@ export OUTPUT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/pre-train
 python -m PeerRead.model.run_pretraining \
 --bert_config_file=$BERT_BASE_DIR/bert_config.json \
 --vocab_file=$BERT_BASE_DIR/vocab.txt \
---init_checkpoint=INIT_FILE \
+--init_checkpoint=$INIT_FILE \
 --input_files=$DATA_FILE \
 --model_dir=$OUTPUT_DIR/PeerRead \
 --num_train_epochs=100 \
