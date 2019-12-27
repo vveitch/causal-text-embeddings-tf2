@@ -41,7 +41,7 @@ from utils.misc import keras_utils
 from utils.misc import tpu_lib
 from hacking import bert_models
 
-from PeerRead.dataset.dataset import make_input_fn_from_file
+from PeerRead.dataset.dataset import make_input_fn_from_file, make_real_labeler
 
 flags.DEFINE_enum(
     'mode', 'train_and_eval', ['train_and_eval', 'export_only'],
@@ -83,23 +83,61 @@ flags.DEFINE_integer("seed", 0, "Seed for rng.")
 
 common_flags.define_common_bert_flags()
 
+# Data splitting details
+flags.DEFINE_integer("num_splits", 10,
+                     "number of splits")
+flags.DEFINE_string("dev_splits", '11', "indices of development splits")
+flags.DEFINE_string("test_splits", '11', "indices of test splits")
+
+# Flags specifically related to PeerRead experiment
+
+flags.DEFINE_string(
+    "treatment", "theorem_referenced",
+    "Covariate used as treatment."
+)
+
+flags.DEFINE_string("simulated", 'real', "whether to use real data ('real'), attribute based ('attribute'), "
+                                         "or propensity score-based ('propensity') simulation"),
+flags.DEFINE_float("beta0", 0.0, "param passed to simulated labeler, treatment strength")
+flags.DEFINE_float("beta1", 0.0, "param passed to simulated labeler, confounding strength")
+flags.DEFINE_float("gamma", 0.0, "param passed to simulated labeler, noise level")
+flags.DEFINE_float("exogenous_confounding", 0.0, "amount of exogenous confounding in propensity based simulation")
+flags.DEFINE_string("base_propensities_path", '', "path to .tsv file containing a 'propensity score' for each unit,"
+                                                  "used for propensity score-based simulation")
+
+flags.DEFINE_string("simulation_mode", 'simple', "simple, multiplicative, or interaction")
+
 FLAGS = flags.FLAGS
 
 
-def dragonnet_loss(y, t, g, q0, q1, mask=None):
-    q0_losses = tf.square(y - q0) * (1 - t)
-    q1_losses = tf.square(y - q1) * t
-    g_losses = -(t * tf.math.log(g) + (1 - t) * tf.math.log(1. - g))
+def make_dragonnet_loss(binary_outcome):
+    def dragonnet_loss(y_, t_, g, q0, q1, mask=None):
 
-    net_losses = q0_losses + q1_losses + g_losses
+        y = tf.cast(y_, tf.float32)
+        t = tf.cast(t_, tf.float32)
 
-    if mask:
-        net_losses = net_losses[mask == 1]
+        if binary_outcome:
+            q0_losses = -(y * tf.math.log(q0) + (1 - y) * tf.math.log(1. - q0)) * (1 - t)
+            q1_losses = -(y * tf.math.log(q1) + (1 - y) * tf.math.log(1. - q1)) * t
+        else:
+            q0_losses = tf.square(y - q0) * (1 - t)
+            q1_losses = tf.square(y - q1) * t
 
-    return tf.reduce_sum(net_losses)
+        g_losses = -(t * tf.math.log(g) + (1 - t) * tf.math.log(1. - g))
+
+        net_losses = q0_losses + q1_losses + g_losses
+
+        if mask:
+            net_losses = net_losses[mask == 1]
+
+        return tf.reduce_sum(net_losses)
+
+    return dragonnet_loss
 
 
 def train_input_fn():
+    labeler = make_real_labeler(FLAGS.treatment, 'accepted')
+
     tokenizer = tokenization.FullTokenizer(
         vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
@@ -115,7 +153,7 @@ def train_input_fn():
         is_pretraining=False,
         shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
         seed=FLAGS.seed,
-        labeler=None)
+        labeler=labeler)
     return train_input_fn(params={'batch_size': FLAGS.train_batch_size})
 
 
@@ -157,7 +195,8 @@ def main(_):
         dragon_model, core_model = (
             bert_models.dragon_model(
                 bert_config,
-                max_seq_length=128))
+                max_seq_length=128,
+                binary_outcome=True))
         dragon_model.optimizer = optimization.create_optimizer(
             initial_lr, steps_per_epoch * epochs, warmup_steps)
         return dragon_model, core_model
@@ -166,6 +205,7 @@ def main(_):
     # model_outputs = model(features)
     def loss_fn(labels, model_outputs):
         g, q0, q1 = model_outputs
+        dragonnet_loss = make_dragonnet_loss(binary_outcome=True)
         loss = dragonnet_loss(labels['outcome'], labels['treatment'], g, q0, q1)
         return loss
 

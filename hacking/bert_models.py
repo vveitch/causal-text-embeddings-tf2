@@ -296,7 +296,7 @@ def pretrain_model(bert_config,
         outputs=output_loss), bert_submodel
 
 
-def dragon_heads(input_dim: int):
+def dragon_heads(input_dim: int, binary_outcome: bool):
     """
     Simplest (and most common) variant of heads of dragonnet
 
@@ -316,6 +316,10 @@ def dragon_heads(input_dim: int):
     q1 = tf.keras.layers.Dense(200, activation='relu')(q1)
     q1 = tf.keras.layers.Dense(1, name='q1')(q1)
 
+    if binary_outcome:
+        q0 = tf.nn.sigmoid(q0, name='q0')
+        q1 = tf.nn.sigmoid(q1, name='q1')
+
     outputs = [g, q0, q1]
 
     return tf.keras.Model(
@@ -325,13 +329,15 @@ def dragon_heads(input_dim: int):
 
 
 def dragon_model(bert_config,
-                 max_seq_length,
+                 max_seq_length: int,
+                 binary_outcome: bool,
                  hub_module_url=None):
     """BERT dragon model in functional API style.
 
     Args:
       bert_config: BertConfig, the config defines the core BERT model.
       max_seq_length: integer, the maximum input sequence length.
+      binary_outcome: bool, whether outcome is binary
       hub_module_url: (Experimental) TF-Hub path/url to Bert module.
 
     Returns:
@@ -355,7 +361,7 @@ def dragon_model(bert_config,
             config=bert_config)
         pooled_output = bert_model.outputs[0]
 
-    dragon_outs = dragon_heads(pooled_output.shape[-1])(pooled_output)
+    dragon_outs = dragon_heads(pooled_output.shape[-1], binary_outcome)(pooled_output)
 
     # output = tf.keras.layers.Dropout(rate=bert_config.hidden_dropout_prob)(
     #     pooled_output)
