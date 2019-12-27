@@ -146,7 +146,7 @@ def run_customized_training(strategy,
                     dev_splits=[2],
                     test_splits=[2],
                     tokenizer=tokenizer,
-                    is_pretraining=make_input_fn_from_file,
+                    is_pretraining=True,
                     is_training=True,
                     shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
                     seed=FLAGS.seed,
@@ -179,7 +179,9 @@ def run_customized_training(strategy,
         train_input_fn=train_input_fn,
         steps_per_epoch=steps_per_epoch,
         steps_per_loop=steps_per_loop,
-        epochs=epochs)
+        epochs=epochs,
+        init_checkpoint=FLAGS.init_checkpoint,
+    )
 
     # Creates the BERT core model outside distribution strategy scope.
     _, core_model = bert_models.pretrain_model(bert_config, max_seq_length,
