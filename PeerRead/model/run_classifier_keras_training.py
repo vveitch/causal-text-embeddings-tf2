@@ -131,6 +131,25 @@ def train_input_fn():
         labeler=labeler)
     return train_input_fn(params={'batch_size': FLAGS.train_batch_size})
 
+def make_dragonnet_losses():
+    def q0_loss(yt, q0):
+        y = yt[0, :]
+        t = yt[1, :]
+        q0_losses = -(y * tf.math.log(q0) + (1 - y) * tf.math.log(1. - q0)) * (1 - t)
+        return tf.reduce_sum(q0_losses)
+
+    def q1_loss(yt, q1):
+        y = yt[0, :]
+        t = yt[1, :]
+        q1_losses = -(y * tf.math.log(q1) + (1 - y) * tf.math.log(1. - q1)) * t
+        return tf.reduce_sum(q1_losses)
+
+    def g_loss(t, g):
+        g_losses = -(t * tf.math.log(g) + (1 - t) * tf.math.log(1. - g))
+        return tf.reduce_sum(g_losses)
+
+    return g_loss, q0_loss, q1_loss
+
 
 def main(_):
     # Users should always run this script under TF 2.x
@@ -177,8 +196,6 @@ def main(_):
         return dragon_model, core_model
 
     # we'll need a hack to let keras loss depend on multiple labels. Which is just plain stupid design.
-    input_data = train_input_fn()
-
     @tf.function
     def _keras_format(features, labels):
         # features, labels = sample
@@ -187,35 +204,40 @@ def main(_):
                   'q0': yt, 'q1': yt}
         return features, labels
 
-    keras_train_data = input_data.map(_keras_format)
-
     # losses
-    def q0_loss(yt, q0):
-        y = yt[0, :]
-        t = yt[1, :]
-        q0_losses = -(y * tf.math.log(q0) + (1 - y) * tf.math.log(1. - q0)) * (1 - t)
-        return tf.reduce_sum(q0_losses)
+    g_loss, q0_loss, q1_loss = make_dragonnet_losses()
 
-    def q1_loss(yt, q1):
-        y = yt[0, :]
-        t = yt[1, :]
-        q1_losses = -(y * tf.math.log(q1) + (1 - y) * tf.math.log(1. - q1)) * t
-        return tf.reduce_sum(q1_losses)
+    with strategy.scope():
+        input_data = train_input_fn()
+        keras_train_data = input_data.map(_keras_format)
 
-    def g_loss(t, g):
-        g_losses = -(t * tf.math.log(g) + (1 - t) * tf.math.log(1. - g))
-        return tf.reduce_sum(g_losses)
+        dragon_model, core_model = _get_dragon_model()
+        optimizer = dragon_model.optimizer
 
-    # train and compile
-    dragon_model, core_model = _get_dragon_model()
-    dragon_model.compile(optimizer=dragon_model.optimizer,
-                         loss={'g': g_loss, 'q0': q0_loss, 'q1': q1_loss})
+        if FLAGS.init_checkpoint:
+            checkpoint = tf.train.Checkpoint(model=core_model)
+            checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
-    dragon_model.fit(keras_train_data, epochs=1)
+        dragon_model.compile(optimizer=optimizer,
+                             loss={'g': g_loss, 'q0': q0_loss, 'q1': q1_loss})
+
+        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir)
+        checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
+        checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir)
+
+        callbacks = [summary_callback, checkpoint_callback]
+
+        dragon_model.fit(
+            x=keras_train_data,
+            # validation_data=evaluation_dataset,
+            steps_per_epoch=steps_per_epoch,
+            epochs=epochs,
+            # validation_steps=eval_steps,
+            callbacks=callbacks)
 
     if FLAGS.model_export_path:
         model_saving_utils.export_bert_model(
-            FLAGS.model_export_path, model=trained_model)
+            FLAGS.model_export_path, model=dragon_model)
 
     # # by-hand training loop for reference
     # dragon_model, _ = _get_dragon_model()
