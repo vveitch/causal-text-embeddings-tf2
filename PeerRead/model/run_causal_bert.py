@@ -253,7 +253,7 @@ def main(_):
         # features, labels = sample
         y = labels['outcome']
         t = labels['treatment']
-        yt = tf.convert_to_tensor(tf.stack([y, t], axis=0))
+        yt = tf.stack([y, t], axis=0)
         labels = {'g': labels['treatment'], 'q0': yt, 'q1': yt}
         return features, labels
 
