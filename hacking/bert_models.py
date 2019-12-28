@@ -296,36 +296,34 @@ def pretrain_model(bert_config,
         outputs=output_loss), bert_submodel
 
 
-def dragon_heads(input_dim: int, binary_outcome: bool):
+def get_dragon_heads(binary_outcome: bool):
     """
     Simplest (and most common) variant of heads of dragonnet
 
-    Returns: a Keras model with signature
+    Returns: a keras layer with signature
     [float vector] -> {g: float, Q0: float, Q1: float}
     """
-    input_rep = tf.keras.Input(
-        shape=(input_dim,), dtype=tf.int32, name='input_word_ids')
+    def dragon_heads(input_rep: tf.Tensor):
+        g = tf.keras.layers.Dense(1, activation='sigmoid', name='g')(input_rep)
 
-    g = tf.keras.layers.Dense(1, activation='sigmoid', name='g')(input_rep)
+        activation = 'sigmoid' if binary_outcome else None
 
-    q0 = tf.keras.layers.Dense(200, activation='relu')(input_rep)
-    q0 = tf.keras.layers.Dense(200, activation='relu')(q0)
-    q0 = tf.keras.layers.Dense(1, name='q0')(q0)
+        q0 = tf.keras.layers.Dense(200, activation='relu')(input_rep)
+        q0 = tf.keras.layers.Dense(200, activation='relu')(q0)
+        q0 = tf.keras.layers.Dense(1, activation=activation, name='q0')(q0)
 
-    q1 = tf.keras.layers.Dense(200, activation='relu')(input_rep)
-    q1 = tf.keras.layers.Dense(200, activation='relu')(q1)
-    q1 = tf.keras.layers.Dense(1, name='q1')(q1)
+        q1 = tf.keras.layers.Dense(200, activation='relu')(input_rep)
+        q1 = tf.keras.layers.Dense(200, activation='relu')(q1)
+        q1 = tf.keras.layers.Dense(1, activation=activation, name='q1')(q1)
 
-    if binary_outcome:
-        q0 = tf.nn.sigmoid(q0, name='q0')
-        q1 = tf.nn.sigmoid(q1, name='q1')
+        return g, q0, q1
 
-    outputs = [g, q0, q1]
+    return dragon_heads
 
-    return tf.keras.Model(
-        inputs=input_rep,
-        outputs=outputs,
-        name='dragon_heads')
+    # return tf.keras.Model(
+    #     inputs=input_rep,
+    #     outputs=outputs,
+    #     name='dragon_heads')
 
 
 def dragon_model(bert_config,
@@ -361,7 +359,8 @@ def dragon_model(bert_config,
             config=bert_config)
         pooled_output = bert_model.outputs[0]
 
-    dragon_outs = dragon_heads(pooled_output.shape[-1], binary_outcome)(pooled_output)
+    head_model = get_dragon_heads(binary_outcome)
+    g, q0, q1 = head_model(pooled_output)
 
     # output = tf.keras.layers.Dropout(rate=bert_config.hidden_dropout_prob)(
     #     pooled_output)
@@ -372,7 +371,7 @@ def dragon_model(bert_config,
             'input_mask': input_mask,
             'input_type_ids': input_type_ids
         },
-        outputs=dragon_outs), bert_model
+        outputs=[g, q0, q1]), bert_model
 
 
 def classifier_model(bert_config,

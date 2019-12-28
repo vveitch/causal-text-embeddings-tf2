@@ -110,78 +110,6 @@ flags.DEFINE_string("simulation_mode", 'simple', "simple, multiplicative, or int
 FLAGS = flags.FLAGS
 
 
-def get_single_head_sparse_accuracy_metric(target):
-    ordered_outputs = ['g', 'q0', 'q1']
-    assert target in ordered_outputs
-
-    my_metric = tf.keras.metrics.SparseCategoricalAccuracy(
-        'accuracy_' + target, dtype=tf.float32)
-
-    def _new_update(labels, model_outputs, sample_weight=None):
-        y = labels['outcome']
-        t = labels['treatment']
-        g, q0, q1 = model_outputs
-
-        if target == 'g':
-            my_metric.update_state(y_true=t, y_pred=g, sample_weight=sample_weight)
-        elif target == 'q0':
-            my_metric.update_state(y_true=y[t==0], y_pred=q0[t==0], sample_weight=sample_weight)
-        elif target == 'q1':
-            my_metric.update_state(y_true=y[t==1], y_pred=q1[t==1], sample_weight=sample_weight)
-
-    my_metric.update_state = _new_update
-
-    return my_metric
-
-
-class SingleHeadSparseAccuracy(tf.keras.metrics.SparseCategoricalAccuracy):
-
-    def __init__(self, name='SparseAccuracy', **kwargs):
-        target = 'g'
-        ordered_outputs = ['g','q0','q1']
-        assert target in ordered_outputs
-        self.target = target
-        super(SingleHeadSparseAccuracy, self).__init__(name=name + '_' + target, **kwargs)
-
-    def update_state(self, y_true, y_pred, sample_weight=None):
-        y = y_true['outcome']
-        t = y_true['treatment']
-
-        g, q0, q1 = y_pred
-
-        if self.target == 'g':
-            super(SingleHeadSparseAccuracy, self).update_state(y_true=t, y_pred=g, sample_weight=sample_weight)
-        elif self.target == 'q0':
-            super(SingleHeadSparseAccuracy, self).update_state(y_true=y[t==0], y_pred=q0[t==0], sample_weight=sample_weight)
-        elif self.target == 'q1':
-            super(SingleHeadSparseAccuracy, self).update_state(y_true=y[t==1], y_pred=q1[t==1], sample_weight=sample_weight)
-
-
-def make_dragonnet_loss(binary_outcome):
-    def dragonnet_loss(y_, t_, g, q0, q1, mask=None):
-
-        y = tf.cast(y_, tf.float32)
-        t = tf.cast(t_, tf.float32)
-
-        if binary_outcome:
-            q0_losses = -(y * tf.math.log(q0) + (1 - y) * tf.math.log(1. - q0)) * (1 - t)
-            q1_losses = -(y * tf.math.log(q1) + (1 - y) * tf.math.log(1. - q1)) * t
-        else:
-            q0_losses = tf.square(y - q0) * (1 - t)
-            q1_losses = tf.square(y - q1) * t
-
-        g_losses = -(t * tf.math.log(g) + (1 - t) * tf.math.log(1. - g))
-
-        net_losses = q0_losses + q1_losses + g_losses
-
-        if mask:
-            net_losses = net_losses[mask == 1]
-
-        return tf.reduce_sum(net_losses)
-
-    return dragonnet_loss
-
-
 def train_input_fn():
     labeler = make_real_labeler(FLAGS.treatment, 'accepted')
 
@@ -201,9 +129,7 @@ def train_input_fn():
         shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
         seed=FLAGS.seed,
         labeler=labeler)
-    train_data = train_input_fn(params={'batch_size': FLAGS.train_batch_size})
-
-    return train_data
+    return train_input_fn(params={'batch_size': FLAGS.train_batch_size})
 
 
 def main(_):
@@ -244,43 +170,48 @@ def main(_):
         dragon_model, core_model = (
             bert_models.dragon_model(
                 bert_config,
-                max_seq_length=128,
+                max_seq_length=250,
                 binary_outcome=True))
         dragon_model.optimizer = optimization.create_optimizer(
             initial_lr, steps_per_epoch * epochs, warmup_steps)
         return dragon_model, core_model
 
-    # training utils expect loss_fn w/ this signature, where labels is second entry of dataset sample and
-    # model_outputs = model(features)
-    def loss_fn(labels, model_outputs):
-        g, q0, q1 = model_outputs
-        dragonnet_loss = make_dragonnet_loss(binary_outcome=True)
-        loss = dragonnet_loss(labels['outcome'], labels['treatment'], g, q0, q1)
-        return loss
-
+    # we'll need a hack to let keras loss depend on multiple labels. Which is just plain stupid design.
     input_data = train_input_fn()
-    train_iterator = iter(strategy.experimental_distribute_dataset(input_data))
-    inputs, _ = next(train_iterator)
-    dragon_model, core_model = _get_dragon_model()
-    # model_outputs = dragon_model(inputs, training=True)
 
-    # use TF-dev provided custom training utils to abstract away details about logging and training loop construction
-    trained_model = model_training_utils.run_customized_training_loop(
-        strategy=strategy,
-        model_fn=_get_dragon_model,
-        loss_fn=loss_fn,
-        model_dir=FLAGS.model_dir,
-        steps_per_epoch=steps_per_epoch,
-        steps_per_loop=FLAGS.steps_per_loop,
-        epochs=epochs,
-        train_input_fn=train_input_fn,
-        eval_input_fn=None,
-        eval_steps=None,
-        init_checkpoint=FLAGS.init_checkpoint,
-        # metric_fn=metric_fn, #TODO: figure this out!
-        metric_fn=None,
-        custom_callbacks=None,
-        run_eagerly=FLAGS.run_eagerly)
+    @tf.function
+    def _keras_format(features, labels):
+        # features, labels = sample
+        yt = tf.cast(tf.stack([labels['outcome'], labels['treatment']]), tf.float32)
+        labels = {'g': tf.cast(labels['treatment'], tf.float32),
+                  'q0': yt, 'q1': yt}
+        return features, labels
+
+    keras_train_data = input_data.map(_keras_format)
+
+    # losses
+    def q0_loss(yt, q0):
+        y = yt[0, :]
+        t = yt[1, :]
+        q0_losses = -(y * tf.math.log(q0) + (1 - y) * tf.math.log(1. - q0)) * (1 - t)
+        return tf.reduce_sum(q0_losses)
+
+    def q1_loss(yt, q1):
+        y = yt[0, :]
+        t = yt[1, :]
+        q1_losses = -(y * tf.math.log(q1) + (1 - y) * tf.math.log(1. - q1)) * t
+        return tf.reduce_sum(q1_losses)
+
+    def g_loss(t, g):
+        g_losses = -(t * tf.math.log(g) + (1 - t) * tf.math.log(1. - g))
+        return tf.reduce_sum(g_losses)
+
+    # train and compile
+    dragon_model, core_model = _get_dragon_model()
+    dragon_model.compile(optimizer=dragon_model.optimizer,
+                         loss={'g': g_loss, 'q0': q0_loss, 'q1': q1_loss})
+
+    dragon_model.fit(keras_train_data, epochs=1)
 
     if FLAGS.model_export_path:
         model_saving_utils.export_bert_model(
