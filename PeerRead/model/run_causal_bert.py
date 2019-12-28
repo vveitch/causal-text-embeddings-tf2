@@ -139,18 +139,23 @@ def make_dataset(is_training: bool):
 
 
 def make_dragonnet_losses():
+    @tf.function
     def q0_loss(yt, q0):
-        y = tf.cast(yt[0, :], tf.float32)
-        t = tf.cast(yt[1, :], tf.float32)
+        yt = tf.cast(yt, tf.float32)
+        y, t = tf.unstack(yt, axis=-1, num=2)
+
         q0_losses = -(y * tf.math.log(q0) + (1 - y) * tf.math.log(1. - q0)) * (1 - t)
         return tf.reduce_sum(q0_losses)
 
+    @tf.function
     def q1_loss(yt, q1):
-        y = tf.cast(yt[0, :], tf.float32)
-        t = tf.cast(yt[1, :], tf.float32)
+        yt = tf.cast(yt, tf.float32)
+        y, t = tf.unstack(yt, axis=-1, num=2)
+
         q1_losses = -(y * tf.math.log(q1) + (1 - y) * tf.math.log(1. - q1)) * t
         return tf.reduce_sum(q1_losses)
 
+    @tf.function
     def g_loss(t, g):
         t = tf.cast(t, tf.float32)
         g_losses = -(t * tf.math.log(g) + (1 - t) * tf.math.log(1. - g))
@@ -165,10 +170,10 @@ def make_yt_metric(metric, name, flip_t=False):
             super().__init__(**kwargs)
 
         def update_state(self, yt, y_pred, **kwargs):
-            y = yt[0, :]
-            y = tf.expand_dims(y, 1)  # to match y_pred
+            yt = tf.cast(yt, tf.float32)
+            y, t = tf.unstack(yt, axis=-1, num=2)
 
-            t = yt[1, :]
+            y = tf.expand_dims(y, 1)  # to match y_pred
             if flip_t:
                 t = 1 - t
 
@@ -253,7 +258,7 @@ def main(_):
         # features, labels = sample
         y = labels['outcome']
         t = labels['treatment']
-        yt = tf.stack([y, t], axis=0)
+        yt = tf.stack([y, t], axis=-1)
         labels = {'g': labels['treatment'], 'q0': yt, 'q1': yt}
         return features, labels
 
