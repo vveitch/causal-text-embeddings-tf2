@@ -383,7 +383,8 @@ def _make_bert_compatifier(is_pretraining):
 
             y = {'outcome': data['outcome'], 'treatment': data['treatment'],
                  'in_dev': data['in_dev'], 'in_test': data['in_test'], 'in_train': data['in_train'],
-                 'y0': data['y0'], 'y1': data['y1']}
+                 'y0': data['y0'], 'y1': data['y1'],
+                 'index': data['index']}
 
         return x, y
 

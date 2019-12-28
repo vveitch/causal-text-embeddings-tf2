@@ -1,5 +1,4 @@
-# coding=utf-8
-# Copyright 2018 The Google AI Language Team Authors.
+# Copyright 2019 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -10,143 +9,92 @@
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific PeerRead governing permissions and
+# See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""BERT finetuning runner
-Modified from [TODO: link] from The Google AI Language Team Authors
-."""
-
+# ==============================================================================
+"""BERT classification finetuning runner in tf2.0."""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import functools
+import json
+import math
 import os
-
-import numpy as np
 import pandas as pd
+
+from absl import app
+from absl import flags
+from absl import logging
 import tensorflow as tf
 
-import bert.tokenization as tokenization
-import bert.modeling as modeling
+# pylint: disable=g-import-not-at-top,redefined-outer-name,reimported
+from modeling import model_training_utils
+from nlp import bert_modeling as modeling
+# from nlp import bert_models
+from nlp import optimization
+from nlp.bert import common_flags
+from nlp.bert import tokenization
+from nlp.bert import input_pipeline
+from nlp.bert import model_saving_utils
+from utils.misc import keras_utils
+from utils.misc import tpu_lib
+from hacking import bert_models
 
-import causal_bert.bert_predictors as predictors
-from PeerRead.dataset.dataset import make_input_fn_from_file, \
-    make_buzzy_based_simulated_labeler, make_propensity_based_simulated_labeler
+from PeerRead.dataset.dataset import make_input_fn_from_file, make_real_labeler
 
-flags = tf.flags
+flags.DEFINE_enum(
+    'mode', 'train_and_eval', ['train_and_eval', 'export_only'],
+    'One of {"train_and_eval", "export_only"}. `train_and_eval`: '
+    'trains the model and evaluates in the meantime. '
+    '`export_only`: will take the latest checkpoint inside '
+    'model_dir and export a `SavedModel`.')
 
-FLAGS = flags.FLAGS
+flags.DEFINE_string('input_files', None,
+                    'File path to retrieve training data for pre-training.')
 
-## Required parameters
+# Model training specific flags.
 flags.DEFINE_string(
-    "input_files_or_glob", None,
-    "The tf_record file (or files) containing the pre-processed data. Probably output of a data_cleaning script.")
+    'input_meta_data_path', None,
+    'Path to file that contains meta data about input '
+    'to be used for training and evaluation.')
+flags.DEFINE_integer(
+    'max_seq_length', 250,
+    'The maximum total input sequence length after WordPiece tokenization. '
+    'Sequences longer than this will be truncated, and sequences shorter '
+    'than this will be padded.')
+flags.DEFINE_integer('max_predictions_per_seq', 20,
+                     'Maximum predictions per sequence_output.')
 
+flags.DEFINE_integer('train_batch_size', 32, 'Batch size for training.')
+flags.DEFINE_integer('eval_batch_size', 32, 'Batch size for evaluation.')
 flags.DEFINE_string(
-    "bert_config_file", None,
-    "The config json file corresponding to the pre-trained BERT model. "
-    "This specifies the model architecture.")
+    'hub_module_url', None, 'TF-Hub path/url to Bert module. '
+                            'If specified, init_checkpoint flag should not be used.')
 
 flags.DEFINE_string("vocab_file", None,
                     "The vocabulary file that the BERT model was trained on.")
-
-flags.DEFINE_string(
-    "output_dir", None,
-    "The output directory where the model checkpoints will be written.")
-
-## Other parameters
-
-flags.DEFINE_string(
-    "init_checkpoint", None,
-    "Initial checkpoint (usually from a pre-trained BERT model).")
-
 flags.DEFINE_bool(
     "do_lower_case", True,
     "Whether to lower case the input text. Should be True for uncased "
     "models and False for cased models.")
 
-flags.DEFINE_integer(
-    "max_seq_length", 128,
-    "The maximum total input sequence length after WordPiece tokenization. "
-    "Sequences longer than this will be truncated, and sequences shorter "
-    "than this will be padded.")
-
-flags.DEFINE_bool("do_train", False, "Whether to run training.")
-
-flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
-
-flags.DEFINE_bool(
-    "do_predict", False,
-    "Whether to run the model in inference mode on the test set.")
-
-flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
-
-flags.DEFINE_integer("eval_batch_size", 8, "Total batch size for eval.")
-
-flags.DEFINE_integer("predict_batch_size", 8, "Total batch size for predict.")
-
-flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
-
-flags.DEFINE_integer("num_train_steps", 10000, "Number of training steps.")
-
-flags.DEFINE_integer("num_warmup_steps", 10000, "number of warmup steps to take")
-
-# flags.DEFINE_float(
-#     "warmup_proportion", 0.1,
-#     "Proportion of training to perform linear learning rate warmup for. "
-#     "E.g., 0.1 = 10% of training.")
-
-flags.DEFINE_integer("save_checkpoints_steps", 5000,
-                     "How often to save the model checkpoint.")
-
-flags.DEFINE_integer("keep_checkpoints", 1,
-                     "How many checkpoints to keep")
-
-flags.DEFINE_integer("iterations_per_loop", 1000,
-                     "How many steps to make in each estimator call.")
-
-flags.DEFINE_bool("use_tpu", False, "Whether to use TPU or GPU/CPU.")
-
-tf.flags.DEFINE_string(
-    "tpu_name", None,
-    "The Cloud TPU to use for training. This should be either the name "
-    "used when creating the Cloud TPU, or a grpc://ip.address.of.tpu:8470 "
-    "url.")
-
-tf.flags.DEFINE_string(
-    "tpu_zone", None,
-    "[Optional] GCE zone where the Cloud TPU is located in. If not "
-    "specified, we will attempt to automatically detect the GCE project from "
-    "metadata.")
-
-tf.flags.DEFINE_string(
-    "gcp_project", None,
-    "[Optional] Project name for the Cloud TPU-enabled project. If not "
-    "specified, we will attempt to automatically detect the GCE project from "
-    "metadata.")
-
-tf.flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
-
-flags.DEFINE_integer(
-    "num_tpu_cores", 8,
-    "Only used if `use_tpu` is True. Total number of TPU cores to use.")
-
 flags.DEFINE_integer("seed", 0, "Seed for rng.")
 
-flags.DEFINE_bool("label_pred", True, "Whether to do (only) label prediction.")
-flags.DEFINE_bool("unsupervised", False, "Whether to do (only) unsupervised training.")
+common_flags.define_common_bert_flags()
 
+# Data splitting details
 flags.DEFINE_integer("num_splits", 10,
                      "number of splits")
-flags.DEFINE_string("dev_splits", '', "indices of development splits")
-flags.DEFINE_string("test_splits", '', "indices of test splits")
+flags.DEFINE_string("dev_splits", '11', "indices of development splits")
+flags.DEFINE_string("test_splits", '11', "indices of test splits")
 
+# Flags specifically related to PeerRead experiment
 
-tf.flags.DEFINE_string(
+flags.DEFINE_string(
     "treatment", "theorem_referenced",
-    "Covariate used as treatement."
+    "Covariate used as treatment."
 )
 
 flags.DEFINE_string("simulated", 'real', "whether to use real data ('real'), attribute based ('attribute'), "
@@ -160,274 +108,221 @@ flags.DEFINE_string("base_propensities_path", '', "path to .tsv file containing 
 
 flags.DEFINE_string("simulation_mode", 'simple', "simple, multiplicative, or interaction")
 
+flags.DEFINE_string("prediction_file", "../output/predictions.tsv", "path where predictions (tsv) will be written")
 
-def main(_):
-    # tf.enable_eager_execution()  # for debugging
-    tf.compat.v1.set_random_seed(FLAGS.seed)
+FLAGS = flags.FLAGS
 
-    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
 
-    if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
-        raise ValueError(
-            "At least one of `do_train`, `do_eval` or `do_predict' must be True.")
-
-    bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
-
-    if FLAGS.max_seq_length > bert_config.max_position_embeddings:
-        raise ValueError(
-            "Cannot use sequence length %d because the BERT model "
-            "was only trained up to sequence length %d" %
-            (FLAGS.max_seq_length, bert_config.max_position_embeddings))
-
-    tf.io.gfile.makedirs(FLAGS.output_dir)
+def make_dataset(is_training: bool):
+    labeler = make_real_labeler(FLAGS.treatment, 'accepted')
 
     tokenizer = tokenization.FullTokenizer(
         vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
-    tpu_cluster_resolver = None
-    if FLAGS.use_tpu and FLAGS.tpu_name:
-        tpu_cluster_resolver = tf.distribute.cluster_resolver.TPUClusterResolver(
-            FLAGS.tpu_name, zone=FLAGS.tpu_zone, project=FLAGS.gcp_project)
+    train_input_fn = make_input_fn_from_file(
+        input_files_or_glob=FLAGS.input_files,
+        seq_length=FLAGS.max_seq_length,
+        num_splits=1,
+        dev_splits=[2],
+        test_splits=[2],
+        tokenizer=tokenizer,
+        do_masking=False,
+        is_training=is_training,
+        is_pretraining=False,
+        shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
+        seed=FLAGS.seed,
+        labeler=labeler)
 
-    is_per_host = tf.compat.v1.estimator.tpu.InputPipelineConfig.PER_HOST_V2
-    run_config = tf.compat.v1.estimator.tpu.RunConfig(
-        cluster=tpu_cluster_resolver,
-        master=FLAGS.master,
-        model_dir=FLAGS.output_dir,
-        save_checkpoints_steps=FLAGS.save_checkpoints_steps,
-        keep_checkpoint_max=FLAGS.keep_checkpoints,
-        # save_checkpoints_steps=None,
-        # save_checkpoints_secs=None,
-        save_summary_steps=10,
-        tpu_config=tf.compat.v1.estimator.tpu.TPUConfig(
-            iterations_per_loop=FLAGS.iterations_per_loop,
-            num_shards=FLAGS.num_tpu_cores,
-            per_host_input_for_training=is_per_host))
+    batch_size = FLAGS.train_batch_size if is_training else FLAGS.eval_batch_size
 
-    # Estimator and data pipeline setup
+    return train_input_fn(params={'batch_size': batch_size})
 
-    if FLAGS.simulated == 'real':
-        params = {'outcome': 'accepted', 'treatment': FLAGS.treatment}
-        labeler = None
 
-    elif FLAGS.simulated == 'attribute':
-        params = {'outcome': 'outcome', 'treatment': 'theorem_referenced'}
-        labeler = make_buzzy_based_simulated_labeler(FLAGS.beta0, FLAGS.beta1, FLAGS.gamma, FLAGS.simulation_mode,
-                                                     seed=FLAGS.seed)
-    elif FLAGS.simulated == 'propensity':
-        params = {'outcome': 'outcome', 'treatment': 'treatment'}
+def make_dragonnet_losses():
+    def q0_loss(yt, q0):
+        y = tf.cast(yt[0, :], tf.float32)
+        t = tf.cast(yt[1, :], tf.float32)
+        q0_losses = -(y * tf.math.log(q0) + (1 - y) * tf.math.log(1. - q0)) * (1 - t)
+        return tf.reduce_sum(q0_losses)
 
-        output = pd.read_csv(FLAGS.base_propensities_path, '\t')
-        # concate is a hack because last predictions were dropped. TBD: remove this
-        base_propensity_scores = np.concatenate([output['treatment_probability'].values, np.zeros(8)])
-        example_indices = output['index'].values
+    def q1_loss(yt, q1):
+        y = tf.cast(yt[0, :], tf.float32)
+        t = tf.cast(yt[1, :], tf.float32)
+        q1_losses = -(y * tf.math.log(q1) + (1 - y) * tf.math.log(1. - q1)) * t
+        return tf.reduce_sum(q1_losses)
 
-        labeler = make_propensity_based_simulated_labeler(treat_strength=FLAGS.beta0,
-                                                          con_strength=FLAGS.beta1,
-                                                          noise_level=FLAGS.gamma,
-                                                          base_propensity_scores=base_propensity_scores,
-                                                          example_indices=example_indices,
-                                                          exogeneous_con=FLAGS.exogenous_confounding,
-                                                          setting=FLAGS.simulation_mode,
-                                                          seed=FLAGS.seed)
+    def g_loss(t, g):
+        t = tf.cast(t, tf.float32)
+        g_losses = -(t * tf.math.log(g) + (1 - t) * tf.math.log(1. - g))
+        return tf.reduce_sum(g_losses)
 
+    return g_loss, q0_loss, q1_loss
+
+
+def make_yt_metric(metric, name, flip_t=False):
+    class YTMetric(metric):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+
+        def update_state(self, yt, y_pred, **kwargs):
+            y = yt[0, :]
+            y = tf.expand_dims(y, 1)  # to match y_pred
+
+            t = yt[1, :]
+            if flip_t:
+                t = 1 - t
+
+            super().update_state(y, y_pred, sample_weight=t)
+
+    return YTMetric(name=name)
+
+
+def make_dragonnet_metrics():
+    METRICS = [
+        tf.keras.metrics.TruePositives,
+        tf.keras.metrics.FalsePositives,
+        tf.keras.metrics.TrueNegatives,
+        tf.keras.metrics.FalseNegatives,
+        tf.keras.metrics.BinaryAccuracy,
+        tf.keras.metrics.Precision,
+        tf.keras.metrics.Recall,
+        tf.keras.metrics.AUC
+    ]
+
+    NAMES = ['tp', 'fp', 'tn', 'fn', 'ba', 'pr', 're', 'auc']
+
+    q0_names = ['q0/' + n for n in NAMES]
+    q0_metrics = [make_yt_metric(m, name=n, flip_t=True) for m, n in zip(METRICS, q0_names)]
+
+    q1_names = ['q1/' + n for n in NAMES]
+    q1_metrics = [make_yt_metric(m, name=n, flip_t=False) for m, n in zip(METRICS, q1_names)]
+
+    g_names = ['g/' + n for n in NAMES]
+    g_metrics = [m(name=n) for m, n in zip(METRICS, g_names)]
+
+    return {'g': g_metrics, 'q0': q0_metrics, 'q1': q1_metrics}
+
+
+def main(_):
+    # Users should always run this script under TF 2.x
+    assert tf.version.VERSION.startswith('2.')
+
+    # with tf.io.gfile.GFile(FLAGS.input_meta_data_path, 'rb') as reader:
+    #     input_meta_data = json.loads(reader.read().decode('utf-8'))
+
+    if not FLAGS.model_dir:
+        FLAGS.model_dir = '/tmp/bert20/'
+    #
+    # Configuration stuff
+    #
+    bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
+    epochs = FLAGS.num_train_epochs
+    train_data_size = 12000
+    steps_per_epoch = int(train_data_size / FLAGS.train_batch_size)
+    warmup_steps = int(epochs * train_data_size * 0.1 / FLAGS.train_batch_size)
+    initial_lr = FLAGS.learning_rate
+
+    strategy = None
+    if FLAGS.strategy_type == 'mirror':
+        strategy = tf.distribute.MirroredStrategy()
+    elif FLAGS.strategy_type == 'tpu':
+        cluster_resolver = tpu_lib.tpu_initialize(FLAGS.tpu)
+        strategy = tf.distribute.experimental.TPUStrategy(cluster_resolver)
     else:
-        Exception("simulated flag not recognized")
+        raise ValueError('The distribution strategy type is not supported: %s' %
+                         FLAGS.strategy_type)
 
-    dev_splits = [int(s) for s in str.split(FLAGS.dev_splits)]
-    test_splits = [int(s) for s in str.split(FLAGS.test_splits)]
+    #
+    # Modeling and training
+    #
 
-    num_train_steps = FLAGS.num_train_steps
-    num_warmup_steps = FLAGS.num_warmup_steps
+    # the model
+    def _get_dragon_model():
+        dragon_model, core_model = (
+            bert_models.dragon_model(
+                bert_config,
+                max_seq_length=250,
+                binary_outcome=True))
+        dragon_model.optimizer = optimization.create_optimizer(
+            initial_lr, steps_per_epoch * epochs, warmup_steps)
+        return dragon_model, core_model
 
-    model_fn = predictors.binary_treat_binary_outcome_model_fn_builder(
-        bert_config=bert_config,
-        init_checkpoint=FLAGS.init_checkpoint,
-        learning_rate=FLAGS.learning_rate,
-        num_train_steps=num_train_steps,
-        num_warmup_steps=num_warmup_steps,
-        use_tpu=FLAGS.use_tpu,
-        use_one_hot_embeddings=FLAGS.use_tpu,
-        label_pred=FLAGS.label_pred,
-        unsupervised=FLAGS.unsupervised,
-        polyak=False)
+    # we'll need a hack to let keras loss depend on multiple labels. Which is just plain stupid design.
+    @tf.function
+    def _keras_format(features, labels):
+        # features, labels = sample
+        y = labels['outcome']
+        t = labels['treatment']
+        yt = tf.convert_to_tensor(tf.stack([y, t], axis=0))
+        labels = {'g': labels['treatment'], 'q0': yt, 'q1': yt}
+        return features, labels
 
-    # model_fn = predictors.model_fn_builder(
-    #     bert_config=bert_config,
-    #     label_dict=label_dict,
-    #     init_checkpoint=FLAGS.init_checkpoint,
-    #     learning_rate=FLAGS.learning_rate,
-    #     num_train_steps=num_train_steps,
-    #     num_warmup_steps=num_warmup_steps,
-    #     use_tpu=FLAGS.use_tpu,
-    #     use_one_hot_embeddings=FLAGS.use_tpu,
-    #     label_pred=FLAGS.label_pred,
-    #     unsupervised=FLAGS.unsupervised)
+    # losses
+    g_loss, q0_loss, q1_loss = make_dragonnet_losses()
 
-    # If TPU is not available, this will fall back to normal Estimator on CPU
-    # or GPU.
-    estimator = tf.compat.v1.estimator.tpu.TPUEstimator(
-        use_tpu=FLAGS.use_tpu,
-        model_fn=model_fn,
-        config=run_config,
-        train_batch_size=FLAGS.train_batch_size,
-        eval_batch_size=FLAGS.eval_batch_size,
-        predict_batch_size=FLAGS.predict_batch_size,
-        params=params)
+    # training. strategy.scope context allows use of multiple devices
+    with strategy.scope():
+        input_data = make_dataset(is_training=True)
+        keras_train_data = input_data.map(_keras_format)
 
-    if FLAGS.do_train:
-        input_files_or_glob = FLAGS.input_files_or_glob
+        dragon_model, core_model = _get_dragon_model()
+        optimizer = dragon_model.optimizer
 
-        tf.compat.v1.logging.info("***** Running training *****")
-        tf.compat.v1.logging.info("  Batch size = %d", FLAGS.train_batch_size)
-        tf.compat.v1.logging.info("  Num steps = %d", num_train_steps)
+        if FLAGS.init_checkpoint:
+            checkpoint = tf.train.Checkpoint(model=core_model)
+            checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
-        # subsample and process the data
-        with tf.compat.v1.name_scope("training_data"):
-            train_input_fn = make_input_fn_from_file(
-                input_files_or_glob=input_files_or_glob,
-                seq_length=FLAGS.max_seq_length,
-                num_splits=FLAGS.num_splits,
-                dev_splits=dev_splits,
-                test_splits=test_splits,
-                tokenizer=tokenizer,
-                is_training=True,
-                shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
-                seed=FLAGS.seed,
-                labeler=labeler)
+        dragon_model.compile(optimizer=optimizer,
+                             loss={'g': g_loss, 'q0': q0_loss, 'q1': q1_loss},
+                             metrics=make_dragonnet_metrics())
 
-            # params = {'batch_size': 64}
-            # input_dataset = train_input_fn(params)
-            # itr = input_dataset.make_one_shot_iterator()
-            # print(itr.get_next())
+        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir)
+        checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
+        checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir)
 
-        # additional logging
-        hooks = []
-        if FLAGS.label_pred:
-            hooks += [
-                tf.estimator.LoggingTensorHook({
-                    # 'token_ids': 'token_ids',
-                    # 'token_mask': 'token_mask',
-                    # 'label_ids': 'label_ids',
-                    # 'pred_in': 'summary/in_split/predictions',
-                    # 'pred_out': 'summary/out_split/predictions',
-                    # 'ra_in': 'summary/in_split/labels/kappa/batch_random_agreement/random_agreement',
-                    # 'ra_out': 'summary/out_split/labels/kappa/batch_random_agreement/random_agreement',
-                },
-                    every_n_iter=1000)
-            ]
+        callbacks = [summary_callback, checkpoint_callback]
 
-        estimator.train(input_fn=train_input_fn, max_steps=num_train_steps, hooks=hooks)
+        dragon_model.fit(
+            x=keras_train_data,
+            # validation_data=evaluation_dataset,
+            steps_per_epoch=steps_per_epoch,
+            epochs=epochs,
+            # vailidation_steps=eval_steps,
+            callbacks=callbacks)
 
-    if FLAGS.do_train and (FLAGS.do_eval or FLAGS.do_predict):
-        # reload the model to get rid of dropout and input token masking
-        trained_model_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
-        model_fn = predictors.binary_treat_binary_outcome_model_fn_builder(
-            bert_config=bert_config,
-            init_checkpoint=trained_model_checkpoint,
-            learning_rate=FLAGS.learning_rate,
-            num_train_steps=num_train_steps,
-            num_warmup_steps=num_warmup_steps,
-            use_tpu=FLAGS.use_tpu,
-            use_one_hot_embeddings=FLAGS.use_tpu,
-            label_pred=True,
-            unsupervised=False,
-            polyak=False
-        )
+    # save the model
+    if FLAGS.model_export_path:
+        model_saving_utils.export_bert_model(
+            FLAGS.model_export_path, model=dragon_model)
 
-        estimator = tf.compat.v1.estimator.tpu.TPUEstimator(
-            use_tpu=FLAGS.use_tpu,
-            model_fn=model_fn,
-            config=run_config,
-            train_batch_size=FLAGS.train_batch_size,
-            eval_batch_size=FLAGS.eval_batch_size,
-            predict_batch_size=FLAGS.predict_batch_size,
-            params=params)
+    # make predictions and write to file
+    # NOTE: theory suggests we should make predictions on heldout data ("cross fitting" or "sample splitting")
+    # but our experiments showed best results by just reusing the data
+    # You can accomodate sample splitting by using the splitting arguments for the dataset creation
 
-    if FLAGS.do_eval:
+    eval_data = make_dataset(is_training=False)
 
-        tf.compat.v1.logging.info("***** Running evaluation *****")
-        # tf.logging.info("  Num examples = %d", len(eval_examples))
-        tf.compat.v1.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
+    with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
+        attribute_names = ['in_test',
+                           'treatment_probability',
+                           'expected_outcome_st_treatment', 'expected_outcome_st_no_treatment',
+                           'outcome', 'treatment',
+                           'index']
+        header = "\t".join(
+            attribute_name for attribute_name in attribute_names) + "\n"
+        writer.write(header)
 
-        # This tells the estimator to run through the entire set.
-        eval_steps = None
-        # However, if running eval on the TPU, you will need to specify the
-        # number of steps.
-        if FLAGS.use_tpu:
-            # Eval will be slightly WRONG on the TPU because it will truncate
-            # the last batch.
-            pass
-            # eval_steps = int(len(eval_examples) / FLAGS.eval_batch_size)
-
-        eval_drop_remainder = True if FLAGS.use_tpu else False
-        eval_input_fn = make_input_fn_from_file(
-                input_files_or_glob=FLAGS.input_files_or_glob,
-                seq_length=FLAGS.max_seq_length,
-                num_splits=FLAGS.num_splits,
-                dev_splits=dev_splits,
-                test_splits=test_splits,
-                tokenizer=tokenizer,
-                is_training=False,
-                filter_test=False,
-                seed=FLAGS.seed,
-                labeler=labeler)
-
-        result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
-
-        output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
-        with tf.io.gfile.GFile(output_eval_file, "w") as writer:
-            tf.compat.v1.logging.info("***** Eval results *****")
-            for key in sorted(result.keys()):
-                tf.compat.v1.logging.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
-
-    if FLAGS.do_predict:
-        tf.compat.v1.logging.info("***** Running prediction*****")
-
-        if FLAGS.use_tpu:
-            # Warning: According to tpu_estimator.py Prediction on TPU is an
-            # experimental feature and hence not supported here
-            raise ValueError("Prediction in TPU not supported")
-
-        predict_input_fn = make_input_fn_from_file(
-                input_files_or_glob=FLAGS.input_files_or_glob,
-                seq_length=FLAGS.max_seq_length,
-                num_splits=FLAGS.num_splits,
-                dev_splits=dev_splits,
-                test_splits=test_splits,
-                tokenizer=tokenizer,
-                is_training=False,
-                filter_test=False,
-                seed=FLAGS.seed,
-                labeler=labeler)
-
-        result = estimator.predict(input_fn=predict_input_fn)
-
-        tf.io.gfile.makedirs(os.path.join(FLAGS.output_dir, 'predict'))
-        output_predict_file = os.path.join(os.path.join(FLAGS.output_dir, 'predict'), "test_results.tsv")
-
-        with tf.io.gfile.GFile(output_predict_file, "w") as writer:
-            tf.compat.v1.logging.info("***** Predict results *****")
-
-            attribute_names = ['in_test',
-                                   'treatment_probability',
-                                   'expected_outcome_st_treatment', 'expected_outcome_st_no_treatment',
-                                   'outcome', 'treatment',
-                                   'index']
-
-            header = "\t".join(
-                attribute_name for attribute_name in attribute_names) + "\n"
-            writer.write(header)
-            for prediction in result:
-                output_line = "\t".join(
-                    str(prediction[attribute_name]) for attribute_name in attribute_names) + "\n"
-                writer.write(output_line)
+        for f, l in eval_data:
+            g_pred, q0_pred, q1_pred = dragon_model.predict(f)
+            attributes = [l['in_test'].numpy(),
+                          g_pred, q1_pred, q0_pred,
+                          l['outcome'].numpy(), l['treatment'].numpy(), l['index'].numpy()]
+            at_df = pd.DataFrame(attributes).T
+            writer.write(at_df.to_csv(sep="\t", header=False))
 
 
-if __name__ == "__main__":
-    flags.mark_flag_as_required("input_files_or_glob")
-    flags.mark_flag_as_required("vocab_file")
-    flags.mark_flag_as_required("bert_config_file")
-    flags.mark_flag_as_required("output_dir")
-    tf.compat.v1.app.run()
+if __name__ == '__main__':
+    flags.mark_flag_as_required('bert_config_file')
+    # flags.mark_flag_as_required('input_meta_data_path')
+    # flags.mark_flag_as_required('model_dir')
+    app.run(main)
