@@ -261,9 +261,9 @@ def main(_):
         dragon_model, core_model = _get_dragon_model()
         optimizer = dragon_model.optimizer
 
-        # if FLAGS.init_checkpoint:
-        #     checkpoint = tf.train.Checkpoint(model=core_model)
-        #     checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
+        if FLAGS.init_checkpoint:
+            checkpoint = tf.train.Checkpoint(model=core_model)
+            checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
         dragon_model.compile(optimizer=optimizer,
                              loss={'g': g_loss, 'q0': q0_loss, 'q1': q1_loss},
