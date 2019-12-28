@@ -131,24 +131,70 @@ def train_input_fn():
         labeler=labeler)
     return train_input_fn(params={'batch_size': FLAGS.train_batch_size})
 
+
 def make_dragonnet_losses():
     def q0_loss(yt, q0):
-        y = yt[0, :]
-        t = yt[1, :]
+        y = tf.cast(yt[0, :], tf.float32)
+        t = tf.cast(yt[1, :], tf.float32)
         q0_losses = -(y * tf.math.log(q0) + (1 - y) * tf.math.log(1. - q0)) * (1 - t)
         return tf.reduce_sum(q0_losses)
 
     def q1_loss(yt, q1):
-        y = yt[0, :]
-        t = yt[1, :]
+        y = tf.cast(yt[0, :], tf.float32)
+        t = tf.cast(yt[1, :], tf.float32)
         q1_losses = -(y * tf.math.log(q1) + (1 - y) * tf.math.log(1. - q1)) * t
         return tf.reduce_sum(q1_losses)
 
     def g_loss(t, g):
+        t = tf.cast(t, tf.float32)
         g_losses = -(t * tf.math.log(g) + (1 - t) * tf.math.log(1. - g))
         return tf.reduce_sum(g_losses)
 
     return g_loss, q0_loss, q1_loss
+
+
+def make_yt_metric(metric, name, flip_t=False):
+    class YTMetric(metric):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+
+        def update_state(self, yt, y_pred, **kwargs):
+            y = yt[0, :]
+            y = tf.expand_dims(y, 1)  # to match y_pred
+
+            t = yt[1, :]
+            if flip_t:
+                t = 1 - t
+
+            super().update_state(y, y_pred, sample_weight=t)
+
+    return YTMetric(name=name)
+
+
+def make_dragonnet_metrics():
+    METRICS = [
+        # tf.keras.metrics.TruePositives,
+        # tf.keras.metrics.FalsePositives,
+        # tf.keras.metrics.TrueNegatives,
+        # tf.keras.metrics.FalseNegatives,
+        tf.keras.metrics.BinaryAccuracy,
+        # tf.keras.metrics.Precision,
+        # tf.keras.metrics.Recall,
+        # tf.keras.metrics.AUC
+    ]
+
+    NAMES = ['tp', 'fp', 'tn', 'fn', 'ba', 'pr', 're', 'auc']
+
+    q0_names = ['q0/' + n for n in NAMES]
+    q0_metrics = [make_yt_metric(m, name=n, flip_t=True) for m, n in zip(METRICS, q0_names)]
+
+    q1_names = ['q1/' + n for n in NAMES]
+    q1_metrics = [make_yt_metric(m, name=n, flip_t=False) for m, n in zip(METRICS, q1_names)]
+
+    g_names = ['g/' + n for n in NAMES]
+    g_metrics = [m(name=n) for m, n in zip(METRICS, g_names)]
+
+    return {'g': g_metrics, 'q0': q0_metrics, 'q1': q1_metrics}
 
 
 def main(_):
@@ -199,9 +245,10 @@ def main(_):
     @tf.function
     def _keras_format(features, labels):
         # features, labels = sample
-        yt = tf.cast(tf.stack([labels['outcome'], labels['treatment']]), tf.float32)
-        labels = {'g': tf.cast(labels['treatment'], tf.float32),
-                  'q0': yt, 'q1': yt}
+        y = labels['outcome']
+        t = labels['treatment']
+        yt = tf.convert_to_tensor(tf.stack([y, t], axis=0))
+        labels = {'g': labels['treatment'], 'q0': yt, 'q1': yt}
         return features, labels
 
     # losses
@@ -214,12 +261,13 @@ def main(_):
         dragon_model, core_model = _get_dragon_model()
         optimizer = dragon_model.optimizer
 
-        if FLAGS.init_checkpoint:
-            checkpoint = tf.train.Checkpoint(model=core_model)
-            checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
+        # if FLAGS.init_checkpoint:
+        #     checkpoint = tf.train.Checkpoint(model=core_model)
+        #     checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
         dragon_model.compile(optimizer=optimizer,
-                             loss={'g': g_loss, 'q0': q0_loss, 'q1': q1_loss})
+                             loss={'g': g_loss, 'q0': q0_loss, 'q1': q1_loss},
+                             metrics=make_dragonnet_metrics())
 
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
@@ -238,19 +286,6 @@ def main(_):
     if FLAGS.model_export_path:
         model_saving_utils.export_bert_model(
             FLAGS.model_export_path, model=dragon_model)
-
-    # # by-hand training loop for reference
-    # dragon_model, _ = _get_dragon_model()
-    # # the data
-    # training_data = train_input_fn()
-    #
-    # for features, labels in training_data:
-    #     with tf.GradientTape() as tape:
-    #         g, q0, q1 = dragon_model(features)
-    #         loss = dragonnet_loss(labels['outcome'], labels['treatment'], g, q0, q1)
-    #
-    #     grads = tape.gradient(loss, dragon_model.trainable_variables)
-    #     dragon_model.optimizer.apply_gradients(zip(grads, dragon_model.trainable_variables))
 
 
 if __name__ == '__main__':
