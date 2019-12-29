@@ -44,6 +44,8 @@ from hacking import bert_models
 
 from PeerRead.dataset.dataset import make_input_fn_from_file, make_real_labeler
 
+common_flags.define_common_bert_flags()
+
 flags.DEFINE_enum(
     'mode', 'train_and_eval', ['train_and_eval', 'export_only'],
     'One of {"train_and_eval", "export_only"}. `train_and_eval`: '
@@ -81,8 +83,6 @@ flags.DEFINE_bool(
     "models and False for cased models.")
 
 flags.DEFINE_integer("seed", 0, "Seed for rng.")
-
-common_flags.define_common_bert_flags()
 
 # Data splitting details
 flags.DEFINE_integer("num_splits", 10,
@@ -194,7 +194,8 @@ def make_dragonnet_metrics():
         tf.keras.metrics.AUC
     ]
 
-    NAMES = ['tp', 'fp', 'tn', 'fn', 'ba', 'pr', 're', 'auc']
+    NAMES = ['true_positive', 'false_positive', 'true_negative', 'false_negative',
+             'binary_accuracy', 'precision', 'recall', 'auc']
 
     q0_names = ['q0/' + n for n in NAMES]
     q0_metrics = [make_yt_metric(m, name=n, flip_t=True) for m, n in zip(METRICS, q0_names)]
@@ -279,9 +280,10 @@ def main(_):
 
         dragon_model.compile(optimizer=optimizer,
                              loss={'g': g_loss, 'q0': q0_loss, 'q1': q1_loss},
+                             loss_weights={'g': 0.8, 'q0': 0.1, 'q1': 0.1},
                              metrics=make_dragonnet_metrics())
 
-        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir)
+        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=640)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
         checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir)
 

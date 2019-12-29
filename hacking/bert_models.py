@@ -303,16 +303,19 @@ def get_dragon_heads(binary_outcome: bool):
     Returns: a keras layer with signature
     [float vector] -> {g: float, Q0: float, Q1: float}
     """
-    def dragon_heads(input_rep: tf.Tensor):
-        g = tf.keras.layers.Dense(1, activation='sigmoid', name='g')(input_rep)
+    def dragon_heads(z: tf.Tensor):
+        g = tf.keras.layers.Dense(1, activation='sigmoid', name='g')(z)
 
-        activation = 'sigmoid' if binary_outcome else None
+        if binary_outcome:
+            activation = 'sigmoid'
+        else:
+            activation = None
 
-        q0 = tf.keras.layers.Dense(200, activation='relu')(input_rep)
+        q0 = tf.keras.layers.Dense(200, activation='relu')(z)
         q0 = tf.keras.layers.Dense(200, activation='relu')(q0)
         q0 = tf.keras.layers.Dense(1, activation=activation, name='q0')(q0)
 
-        q1 = tf.keras.layers.Dense(200, activation='relu')(input_rep)
+        q1 = tf.keras.layers.Dense(200, activation='relu')(z)
         q1 = tf.keras.layers.Dense(200, activation='relu')(q1)
         q1 = tf.keras.layers.Dense(1, activation=activation, name='q1')(q1)
 
@@ -321,7 +324,7 @@ def get_dragon_heads(binary_outcome: bool):
     return dragon_heads
 
     # return tf.keras.Model(
-    #     inputs=input_rep,
+    #     inputs=z,
     #     outputs=outputs,
     #     name='dragon_heads')
 
