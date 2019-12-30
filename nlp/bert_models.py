@@ -33,9 +33,9 @@ def gather_indexes(sequence_tensor, positions):
         sequence_tensor: Sequence output of `BertModel` layer of shape
           (`batch_size`, `seq_length`, num_hidden) where num_hidden is number of
           hidden units of `BertModel` layer.
-        positions: Positions ids of tokens in sequence to mask for pretraining of
+        positions: Positions ids of tokens in sequence to sample_weight for pretraining of
           with dimension (batch_size, max_predictions_per_seq) where
-          `max_predictions_per_seq` is maximum number of tokens to mask out and
+          `max_predictions_per_seq` is maximum number of tokens to sample_weight out and
           predict per each sequence.
 
     Returns:
@@ -233,7 +233,7 @@ def pretrain_model(bert_config,
     Args:
         bert_config: Configuration that defines the core BERT model.
         seq_length: Maximum sequence length of the training data.
-        max_predictions_per_seq: Maximum number of tokens in sequence to mask out
+        max_predictions_per_seq: Maximum number of tokens in sequence to sample_weight out
           and use for pretraining.
         initializer: Initializer for weights in BertPretrainLayer.
 
@@ -402,8 +402,8 @@ def classifier_model(bert_config,
       hub_module_url: (Experimental) TF-Hub path/url to Bert module.
 
     Returns:
-      Combined prediction model (words, mask, type) -> (one-hot labels)
-      BERT sub-model (words, mask, type) -> (bert_outputs)
+      Combined prediction model (words, sample_weight, type) -> (one-hot labels)
+      BERT sub-model (words, sample_weight, type) -> (bert_outputs)
     """
     input_word_ids = tf.keras.layers.Input(
         shape=(max_seq_length,), dtype=tf.int32, name='input_word_ids')

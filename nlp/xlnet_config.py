@@ -163,7 +163,7 @@ class RunConfig(object):
         -1 means no clamping.
       same_length: bool, whether to use the same attention length
                    for each token.
-      use_cls_mask: bool, whether to introduce cls mask.
+      use_cls_mask: bool, whether to introduce cls sample_weight.
     """
 
     self.init_method = init_method

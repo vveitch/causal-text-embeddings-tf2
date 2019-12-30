@@ -197,14 +197,9 @@ def make_dragonnet_metrics():
     NAMES = ['true_positive', 'false_positive', 'true_negative', 'false_negative',
              'binary_accuracy', 'precision', 'recall', 'auc']
 
-    q0_names = ['q0/' + n for n in NAMES]
-    q0_metrics = [make_yt_metric(m, name=n, flip_t=True) for m, n in zip(METRICS, q0_names)]
-
-    q1_names = ['q1/' + n for n in NAMES]
-    q1_metrics = [make_yt_metric(m, name=n, flip_t=False) for m, n in zip(METRICS, q1_names)]
-
-    g_names = ['g/' + n for n in NAMES]
-    g_metrics = [m(name=n) for m, n in zip(METRICS, g_names)]
+    g_metrics = [m(name=n) for m, n in zip(METRICS, NAMES)]
+    q0_metrics = [m(name=n) for m, n in zip(METRICS, NAMES)]
+    q1_metrics = [m(name=n) for m, n in zip(METRICS, NAMES)]
 
     return {'g': g_metrics, 'q0': q0_metrics, 'q1': q1_metrics}
 
@@ -258,10 +253,10 @@ def main(_):
     def _keras_format(features, labels):
         # features, labels = sample
         y = labels['outcome']
-        t = labels['treatment']
-        yt = tf.stack([y, t], axis=-1)
-        labels = {'g': labels['treatment'], 'q0': yt, 'q1': yt}
-        return features, labels
+        t = tf.cast(labels['treatment'], tf.float32)
+        labels = {'g': labels['treatment'], 'q0': y, 'q1': y}
+        sample_weights = {'q0': 1-t, 'q1': t}
+        return features, labels, sample_weights
 
     # losses
     g_loss, q0_loss, q1_loss = make_dragonnet_losses()
@@ -279,9 +274,9 @@ def main(_):
             checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
         dragon_model.compile(optimizer=optimizer,
-                             loss={'g': g_loss, 'q0': q0_loss, 'q1': q1_loss},
+                             loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy', 'q1': 'binary_crossentropy'},
                              loss_weights={'g': 0.8, 'q0': 0.1, 'q1': 0.1},
-                             metrics=make_dragonnet_metrics())
+                             weighted_metrics=make_dragonnet_metrics())
 
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=640)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')

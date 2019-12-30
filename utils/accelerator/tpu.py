@@ -91,7 +91,7 @@ def embedding_matmul(embedding_table, values, mask, name="embedding_matmul"):
     embedding_table: Tensor of embedding table.
       Rank 2 (table_size x embedding dim)
     values: Tensor of embedding indices. Rank 2 (batch x n_indices)
-    mask: Tensor of mask / weights. Rank 2 (batch x n_indices)
+    mask: Tensor of sample_weight / weights. Rank 2 (batch x n_indices)
     name: Optional name scope for created ops
 
   Returns:

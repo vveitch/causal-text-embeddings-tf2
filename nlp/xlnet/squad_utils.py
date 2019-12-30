@@ -726,7 +726,7 @@ def convert_examples_to_features(examples, sp_model, max_seq_length, doc_stride,
 
       input_ids = tokens
 
-      # The mask has 0 for real tokens and 1 for padding tokens. Only real
+      # The sample_weight has 0 for real tokens and 1 for padding tokens. Only real
       # tokens are attended to.
       input_mask = [0] * len(input_ids)
 

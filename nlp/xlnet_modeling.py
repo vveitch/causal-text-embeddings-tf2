@@ -67,7 +67,7 @@ def _get_initializer(flags):
 
 
 def _create_mask(qlen, mlen, dtype=tf.float32, same_length=False):
-  """Creates attention mask when single-side context allowed only."""
+  """Creates attention sample_weight when single-side context allowed only."""
   attn_mask = tf.ones([qlen, qlen], dtype=dtype)
   mask_u = tf.matrix_band_part(attn_mask, 0, -1)
   mask_dia = tf.matrix_band_part(attn_mask, 0, 0)
@@ -595,7 +595,7 @@ class TransformerXLModel(tf.keras.layers.Layer):
       reuse_len: int, the number of tokens in the currect batch to be cached and
         reused in the future.
       ff_activation: str, "relu" or "gelu".
-      use_cls_mask: bool, whether to introduce cls mask.
+      use_cls_mask: bool, whether to introduce cls sample_weight.
       **kwargs: Other parameters.
     """
 
@@ -770,8 +770,8 @@ class TransformerXLModel(tf.keras.layers.Layer):
     mlen = mems[0].shape.as_list()[0] if mems is not None else 0
     klen = mlen + qlen
 
-    ##### Attention mask
-    # causal attention mask
+    ##### Attention sample_weight
+    # causal attention sample_weight
     if self.attn_type == 'uni':
       attn_mask = _create_mask(qlen, mlen, self.tf_float, self.same_length)
       # pylint: enable=protected-access
@@ -781,7 +781,7 @@ class TransformerXLModel(tf.keras.layers.Layer):
     else:
       raise ValueError('Unsupported attention type: {}'.format(self.attn_type))
 
-    # data mask: input mask & perm mask
+    # data sample_weight: input sample_weight & perm sample_weight
     if input_mask is not None and perm_mask is not None:
       data_mask = input_mask[None] + perm_mask
 
@@ -1019,7 +1019,7 @@ class PretrainingXLNetModel(tf.keras.Model):
     # target for LM loss
     target = tf.transpose(features['target'], [1, 0])
 
-    # target mask for LM loss
+    # target sample_weight for LM loss
     tgt_mask = tf.transpose(features['target_mask'], [1, 0])
 
     mems = features.get('mems', None)

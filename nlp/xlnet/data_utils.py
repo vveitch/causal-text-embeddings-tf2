@@ -32,7 +32,7 @@ special_symbols = {
     "<cls>": 3,
     "<sep>": 4,
     "<pad>": 5,
-    "<mask>": 6,
+    "<sample_weight>": 6,
     "<eod>": 7,
     "<eop>": 8,
 }
@@ -41,7 +41,7 @@ VOCAB_SIZE = 32000
 UNK_ID = special_symbols["<unk>"]
 CLS_ID = special_symbols["<cls>"]
 SEP_ID = special_symbols["<sep>"]
-MASK_ID = special_symbols["<mask>"]
+MASK_ID = special_symbols["<sample_weight>"]
 EOD_ID = special_symbols["<eod>"]
 SEG_ID_P = 0
 SEG_ID_Q = 1
@@ -282,13 +282,13 @@ def create_pretrain_dataset(file_names,
     # there will be data leaks.
     assert perm_size <= reuse_len and perm_size <= non_reuse_len
 
-    # Creates permutation mask and target mask for the first reuse_len tokens.
+    # Creates permutation sample_weight and target sample_weight for the first reuse_len tokens.
     # The tokens in this part are reused from the last sequence.
     perm_mask_0, target_0, target_mask_0, input_k_0, input_q_0 = _local_perm(
         inputs[:reuse_len], target[:reuse_len], is_masked[:reuse_len],
         perm_size, reuse_len)
 
-    # Creates permutation mask and target mask for the rest of tokens in
+    # Creates permutation sample_weight and target sample_weight for the rest of tokens in
     # current example, which are concatentation of two new segments.
     perm_mask_1, target_1, target_mask_1, input_k_1, input_q_1 = _local_perm(
         inputs[reuse_len:], target[reuse_len:], is_masked[reuse_len:],
@@ -326,7 +326,7 @@ def create_pretrain_dataset(file_names,
       target = tf.concat([target, paddings], axis=0)
       example["target"] = tf.reshape(target, [num_predict])
 
-      ##### target mask
+      ##### target sample_weight
       target_mask = tf.concat([
           tf.ones([actual_num_predict], dtype=tf.float32),
           tf.zeros([pad_len], dtype=tf.float32)
@@ -560,7 +560,7 @@ def _local_perm(inputs, targets, is_masked, perm_size, seq_len):
     In XLNet, target doesn't need to be shifted one position.
     target_mask: float32 Tensor in shape [seq_len] consisted of 0 and 1. If
     target_mask[i] == 1,
-    the ith token needs to be predicted and mask will be used as input. This
+    the ith token needs to be predicted and sample_weight will be used as input. This
     token will count for loss.
     If target_mask[i] == 0, token (or [SEP], [CLS]) will be used as input. This
     token will not count for loss.
@@ -591,7 +591,7 @@ def _local_perm(inputs, targets, is_masked, perm_size, seq_len):
   rev_index = tf.where(non_mask_tokens, smallest_index, index)
 
   # Create `target_mask`: non-funcional and masked tokens
-  # 1: use mask as input and have loss
+  # 1: use sample_weight as input and have loss
   # 0: use token (or [SEP], [CLS]) as input and do not have loss
   target_tokens = tf.logical_and(masked_or_func_tokens, non_func_tokens)
   target_mask = tf.cast(target_tokens, tf.float32)

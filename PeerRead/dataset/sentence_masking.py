@@ -39,7 +39,7 @@ def create_masked_lm_predictions(token_ids, masked_lm_prob, max_predictions_per_
         tf.random.uniform(token_ids.shape, minval=0, maxval=1, dtype=tf.float32, seed=seed),
         masked_lm_prob)
 
-    # don't mask special characters or padding
+    # don't sample_weight special characters or padding
     cand_indexes = tf.logical_and(tf.not_equal(token_ids, vocab["[CLS]"]),
                                   tf.not_equal(token_ids, vocab["[SEP]"]))
     cand_indexes = tf.logical_and(cand_indexes, tf.not_equal(token_ids, 0))
@@ -48,8 +48,8 @@ def create_masked_lm_predictions(token_ids, masked_lm_prob, max_predictions_per_
     # truncate to max predictions for ease of padding
     masked_lm_positions = tf.compat.v1.where(mask)
     # TODO: it should be essentially impossible for me to see this bug (very unlikely), but I do... symptom of :( ?
-    # very rare event: nothing gets picked for mask, causing an irritating bug
-    # in this case, just mask the first candidate index
+    # very rare event: nothing gets picked for sample_weight, causing an irritating bug
+    # in this case, just sample_weight the first candidate index
     mlm_shape = tf.shape(input=masked_lm_positions)[0]
     masked_lm_positions = tf.cond(pred=mlm_shape > 1,
                                   true_fn=lambda: masked_lm_positions,

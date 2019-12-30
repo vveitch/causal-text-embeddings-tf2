@@ -242,7 +242,7 @@ def main(_):
     # the model
     def _get_dragon_model():
         dragon_model, core_model = (
-            bert_models.dragon_model(
+            bert_models.dragon_model_simple(
                 bert_config,
                 max_seq_length=128,
                 binary_outcome=True))

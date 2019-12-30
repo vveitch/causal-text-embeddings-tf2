@@ -61,7 +61,7 @@ def run_evaluation(strategy,
     model: keras model object.
     step: current train step.
     eval_summary_writer: summary writer used to record evaluation metrics.  As
-      there are fake data samples in validation set, we use mask to get rid of
+      there are fake data samples in validation set, we use sample_weight to get rid of
       them when calculating the accuracy. For the reason that there will be
       dynamic-shape tensor, we first collect logits, labels and masks from TPU
       and calculate the accuracy via numpy locally.

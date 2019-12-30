@@ -33,9 +33,9 @@ def gather_indexes(sequence_tensor, positions):
         sequence_tensor: Sequence output of `BertModel` layer of shape
           (`batch_size`, `seq_length`, num_hidden) where num_hidden is number of
           hidden units of `BertModel` layer.
-        positions: Positions ids of tokens in sequence to mask for pretraining of
+        positions: Positions ids of tokens in sequence to sample_weight for pretraining of
           with dimension (batch_size, max_predictions_per_seq) where
-          `max_predictions_per_seq` is maximum number of tokens to mask out and
+          `max_predictions_per_seq` is maximum number of tokens to sample_weight out and
           predict per each sequence.
 
     Returns:
@@ -233,7 +233,7 @@ def pretrain_model(bert_config,
     Args:
         bert_config: Configuration that defines the core BERT model.
         seq_length: Maximum sequence length of the training data.
-        max_predictions_per_seq: Maximum number of tokens in sequence to mask out
+        max_predictions_per_seq: Maximum number of tokens in sequence to sample_weight out
           and use for pretraining.
         initializer: Initializer for weights in BertPretrainLayer.
 
@@ -303,6 +303,7 @@ def get_dragon_heads(binary_outcome: bool):
     Returns: a keras layer with signature
     [float vector] -> {g: float, Q0: float, Q1: float}
     """
+
     def dragon_heads(z: tf.Tensor):
         g = tf.keras.layers.Dense(1, activation='sigmoid', name='g')(z)
 
@@ -329,10 +330,10 @@ def get_dragon_heads(binary_outcome: bool):
     #     name='dragon_heads')
 
 
-def dragon_model(bert_config,
-                 max_seq_length: int,
-                 binary_outcome: bool,
-                 hub_module_url=None):
+def dragon_model_simple(bert_config,
+                        max_seq_length: int,
+                        binary_outcome: bool,
+                        hub_module_url=None):
     """BERT dragon model in functional API style.
 
     Args:
@@ -342,8 +343,8 @@ def dragon_model(bert_config,
       hub_module_url: (Experimental) TF-Hub path/url to Bert module.
 
     Returns:
-      Combined prediction model (words, mask, type) -> (one-hot labels)
-      BERT sub-model (words, mask, type) -> {g: float, Q0: float, Q1: float}
+      Combined prediction model (words, sample_weight, type) -> (one-hot labels)
+      BERT sub-model (words, sample_weight, type) -> {g: float, Q0: float, Q1: float}
     """
     input_word_ids = tf.keras.layers.Input(
         shape=(max_seq_length,), dtype=tf.int32, name='input_word_ids')
@@ -377,6 +378,44 @@ def dragon_model(bert_config,
         outputs=[g, q0, q1]), bert_model
 
 
+def cross_ent(y_true, y_pred, sample_weight):
+    y_true = tf.cast(y_true, tf.float32)
+    example_error = -(y_true * tf.math.log(y_pred) + (1 - y_true) * tf.math.log(1. - y_pred)) * sample_weight
+    return tf.reduce_sum(example_error)
+
+
+def dragon_model(bert_config,
+                 max_seq_length: int,
+                 binary_outcome: bool,
+                 hub_module_url=None):
+    """BERT dragon model in functional API style.
+
+    Args:
+      bert_config: BertConfig, the config defines the core BERT model.
+      max_seq_length: integer, the maximum input sequence length.
+      binary_outcome: bool, whether outcome is binary
+      hub_module_url: (Experimental) TF-Hub path/url to Bert module.
+
+    Returns:
+      Combined prediction model (words, sample_weight, type) -> (one-hot labels)
+      BERT sub-model (words, sample_weight, type) -> {g: float, Q0: float, Q1: float}
+    """
+
+    simple_dragon_model, bert_model = dragon_model_simple(bert_config,
+                                                          max_seq_length,
+                                                          binary_outcome,
+                                                          hub_module_url)
+
+    inputs = simple_dragon_model.input  # reuse the word input tensors
+    g, q0, q1 = simple_dragon_model.outputs
+
+    final_model = tf.keras.Model(
+        inputs=inputs,
+        outputs=[g, q0, q1])
+
+    return final_model, bert_model
+
+
 def classifier_model(bert_config,
                      float_type,
                      num_labels,
@@ -398,8 +437,8 @@ def classifier_model(bert_config,
       hub_module_url: (Experimental) TF-Hub path/url to Bert module.
 
     Returns:
-      Combined prediction model (words, mask, type) -> (one-hot labels)
-      BERT sub-model (words, mask, type) -> (bert_outputs)
+      Combined prediction model (words, sample_weight, type) -> (one-hot labels)
+      BERT sub-model (words, sample_weight, type) -> (bert_outputs)
     """
     input_word_ids = tf.keras.layers.Input(
         shape=(max_seq_length,), dtype=tf.int32, name='input_word_ids')
@@ -440,3 +479,12 @@ def classifier_model(bert_config,
             'input_type_ids': input_type_ids
         },
         outputs=output), bert_model
+
+
+if __name__ == '__main__':
+    bert_config_file = "pre-trained/uncased_L-12_H-768_A-12/bert_config.json"
+    bert_config = modeling.BertConfig.from_json_file(bert_config_file)
+
+    max_seq_length = 250
+    binary_outcome = True
+    hub_module_url = None

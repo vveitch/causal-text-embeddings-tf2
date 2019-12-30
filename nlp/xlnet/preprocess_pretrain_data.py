@@ -42,7 +42,7 @@ special_symbols = {
     "<cls>"  : 3,
     "<sep>"  : 4,
     "<pad>"  : 5,
-    "<mask>" : 6,
+    "<sample_weight>" : 6,
     "<eod>"  : 7,
     "<eop>"  : 8,
 }
@@ -51,7 +51,7 @@ VOCAB_SIZE = 32000
 UNK_ID = special_symbols["<unk>"]
 CLS_ID = special_symbols["<cls>"]
 SEP_ID = special_symbols["<sep>"]
-MASK_ID = special_symbols["<mask>"]
+MASK_ID = special_symbols["<sample_weight>"]
 EOD_ID = special_symbols["<eod>"]
 
 
@@ -662,7 +662,7 @@ def parse_files_to_dataset(parser, file_names, split, num_batch, num_hosts,
 def _local_perm(inputs, targets, is_masked, perm_size, seq_len):
   """
   Sample a permutation of the factorization order, and create an
-  attention mask accordingly.
+  attention sample_weight accordingly.
 
   Args:
     inputs: int64 Tensor in shape [seq_len], input ids.
@@ -697,7 +697,7 @@ def _local_perm(inputs, targets, is_masked, perm_size, seq_len):
   rev_index = tf.where(non_mask_tokens, smallest_index, index)
 
   # Create `target_mask`: non-funcional and maksed tokens
-  # 1: use mask as input and have loss
+  # 1: use sample_weight as input and have loss
   # 0: use token (or [SEP], [CLS]) as input and do not have loss
   target_tokens = tf.logical_and(masked_or_func_tokens, non_func_tokens)
   target_mask = tf.cast(target_tokens, tf.float32)
@@ -806,7 +806,7 @@ def get_dataset(params, num_hosts, num_core_per_host, split, file_names,
       target = tf.concat([target, paddings], axis=0)
       example["target"] = tf.reshape(target, [num_predict])
 
-      ##### target mask
+      ##### target sample_weight
       target_mask = tf.concat(
           [tf.ones([actual_num_predict], dtype=tf.float32),
            tf.zeros([pad_len], dtype=tf.float32)],
@@ -972,7 +972,7 @@ if __name__ == "__main__":
   flags.DEFINE_integer("mask_alpha", default=6,
                        help="How many tokens to form a group.")
   flags.DEFINE_integer("mask_beta", default=1,
-                       help="How many tokens to mask within each group.")
+                       help="How many tokens to sample_weight within each group.")
   flags.DEFINE_bool("use_eod", True,
                     help="whether to append EOD at the end of a doc.")
   flags.DEFINE_bool("from_raw_text", True,

@@ -114,7 +114,7 @@ def make_parser(abs_seq_len=250):
 
 
 def make_input_id_masker(tokenizer, seed):
-    # (One of) Bert's unsupervised objectives is to mask some fraction of the input words and predict the masked words
+    # (One of) Bert's unsupervised objectives is to sample_weight some fraction of the input words and predict the masked words
 
     def masker(data):
         token_ids = data['token_ids']

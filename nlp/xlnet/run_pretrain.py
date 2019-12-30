@@ -37,7 +37,7 @@ from utils.misc import tpu_lib
 flags.DEFINE_integer(
     "mask_alpha", default=6, help="How many tokens to form a group.")
 flags.DEFINE_integer(
-    "mask_beta", default=1, help="How many tokens to mask within each group.")
+    "mask_beta", default=1, help="How many tokens to sample_weight within each group.")
 flags.DEFINE_integer(
     "num_predict",
     default=None,

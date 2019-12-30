@@ -354,7 +354,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob,
     for (i, token) in enumerate(tokens):
         if token == "[CLS]" or token == "[SEP]":
             continue
-        # Whole Word Masking means that if we mask all of the wordpieces
+        # Whole Word Masking means that if we sample_weight all of the wordpieces
         # corresponding to an original word. When a word has been split into
         # WordPieces, the first token does not have any marker and any subsequence
         # tokens are prefixed with ##. So whenever we see the ## token, we
@@ -381,7 +381,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob,
     for index_set in cand_indexes:
         if len(masked_lms) >= num_to_predict:
             break
-        # If adding a whole-word mask would exceed the maximum number of
+        # If adding a whole-word sample_weight would exceed the maximum number of
         # predictions, then just skip this candidate.
         if len(masked_lms) + len(index_set) > num_to_predict:
             continue

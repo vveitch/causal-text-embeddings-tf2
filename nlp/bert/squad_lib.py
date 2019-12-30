@@ -312,7 +312,7 @@ def convert_examples_to_features(examples,
 
       input_ids = tokenizer.convert_tokens_to_ids(tokens)
 
-      # The mask has 1 for real tokens and 0 for padding tokens. Only real
+      # The sample_weight has 1 for real tokens and 0 for padding tokens. Only real
       # tokens are attended to.
       input_mask = [1] * len(input_ids)
 
