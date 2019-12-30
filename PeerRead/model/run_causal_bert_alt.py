@@ -53,6 +53,10 @@ flags.DEFINE_enum(
     '`export_only`: will take the latest checkpoint inside '
     'model_dir and export a `SavedModel`.')
 
+flags.DEFINE_bool(
+    "do_masking", True,
+    "Whether to randomly mask input words during training (serves as a sort of regularization)")
+
 flags.DEFINE_string('input_files', None,
                     'File path to retrieve training data for pre-training.')
 
@@ -119,16 +123,18 @@ def make_dataset(is_training: bool):
     tokenizer = tokenization.FullTokenizer(
         vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
+    dev_splits = [int(s) for s in str.split(FLAGS.dev_splits)]
+    test_splits = [int(s) for s in str.split(FLAGS.test_splits)]
+
     train_input_fn = make_input_fn_from_file(
         input_files_or_glob=FLAGS.input_files,
         seq_length=FLAGS.max_seq_length,
-        num_splits=1,
-        dev_splits=[2],
-        test_splits=[2],
+        num_splits=FLAGS.num_splits,
+        dev_splits=dev_splits,
+        test_splits=test_splits,
         tokenizer=tokenizer,
-        do_masking=False,
+        do_masking=FLAGS.do_masking,
         is_training=is_training,
-        is_pretraining=False,
         shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
         seed=FLAGS.seed,
         labeler=labeler)
@@ -136,50 +142,6 @@ def make_dataset(is_training: bool):
     batch_size = FLAGS.train_batch_size if is_training else FLAGS.eval_batch_size
 
     return train_input_fn(params={'batch_size': batch_size})
-
-
-def make_dragonnet_losses():
-    @tf.function
-    def q0_loss(yt, q0):
-        yt = tf.cast(yt, tf.float32)
-        y, t = tf.unstack(yt, axis=-1, num=2)
-
-        q0_losses = -(y * tf.math.log(q0) + (1 - y) * tf.math.log(1. - q0)) * (1 - t)
-        return tf.reduce_sum(q0_losses)
-
-    @tf.function
-    def q1_loss(yt, q1):
-        yt = tf.cast(yt, tf.float32)
-        y, t = tf.unstack(yt, axis=-1, num=2)
-
-        q1_losses = -(y * tf.math.log(q1) + (1 - y) * tf.math.log(1. - q1)) * t
-        return tf.reduce_sum(q1_losses)
-
-    @tf.function
-    def g_loss(t, g):
-        t = tf.cast(t, tf.float32)
-        g_losses = -(t * tf.math.log(g) + (1 - t) * tf.math.log(1. - g))
-        return tf.reduce_sum(g_losses)
-
-    return g_loss, q0_loss, q1_loss
-
-
-def make_yt_metric(metric, name, flip_t=False):
-    class YTMetric(metric):
-        def __init__(self, **kwargs):
-            super().__init__(**kwargs)
-
-        def update_state(self, yt, y_pred, **kwargs):
-            yt = tf.cast(yt, tf.float32)
-            y, t = tf.unstack(yt, axis=-1, num=2)
-
-            y = tf.expand_dims(y, 1)  # to match y_pred
-            if flip_t:
-                t = 1 - t
-
-            super().update_state(y, y_pred, sample_weight=t)
-
-    return YTMetric(name=name)
 
 
 def make_dragonnet_metrics():
@@ -240,12 +202,15 @@ def main(_):
     # the model
     def _get_dragon_model():
         dragon_model, core_model = (
-            bert_models.dragon_model_simple(
+            bert_models.dragon_model(
                 bert_config,
                 max_seq_length=250,
-                binary_outcome=True))
+                binary_outcome=True,
+                use_unsup=FLAGS.do_masking,
+                max_predictions_per_seq=20,
+                unsup_scale=1.))
         dragon_model.optimizer = optimization.create_optimizer(
-            initial_lr, steps_per_epoch * epochs, warmup_steps)
+            FLAGS.train_batch_size * initial_lr, steps_per_epoch * epochs, warmup_steps)
         return dragon_model, core_model
 
     # we'll need a hack to let keras loss depend on multiple labels. Which is just plain stupid design.
@@ -257,9 +222,6 @@ def main(_):
         labels = {'g': labels['treatment'], 'q0': y, 'q1': y}
         sample_weights = {'q0': 1-t, 'q1': t}
         return features, labels, sample_weights
-
-    # losses
-    g_loss, q0_loss, q1_loss = make_dragonnet_losses()
 
     # training. strategy.scope context allows use of multiple devices
     with strategy.scope():

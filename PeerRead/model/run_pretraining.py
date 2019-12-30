@@ -146,7 +146,6 @@ def run_customized_training(strategy,
                     dev_splits=[2],
                     test_splits=[2],
                     tokenizer=tokenizer,
-                    is_pretraining=True,
                     is_training=True,
                     shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
                     seed=FLAGS.seed,

@@ -350,7 +350,7 @@ def make_split_document_labels(num_splits, dev_splits, test_splits):
     return fn
 
 
-def _make_bert_compatifier(is_pretraining):
+def _make_bert_compatifier(do_masking):
     """
     Makes a parser to change feature naming to be consistent w/ what's expected by pretrained bert model, i.e. filter
     down to only features used as bert input, and put data into expected (features, labels) format
@@ -360,11 +360,11 @@ def _make_bert_compatifier(is_pretraining):
         # data['input_word_ids'] = data.pop('maybe_masked_input_ids')
         # data['input_mask'] = data.pop('token_mask')
 
-        if is_pretraining:
+        if do_masking:
             x = {
                 'input_word_ids': data['maybe_masked_input_ids'],
                 'input_mask': data['token_mask'],
-                'input_type_ids': tf.zeros_like(data['token_mask']), # segment ids
+                'input_type_ids': tf.zeros_like(data['token_mask']),  # segment ids
                 'masked_lm_positions': data['masked_lm_positions'],
                 'masked_lm_ids': data['masked_lm_ids'],
                 'masked_lm_weights': data['masked_lm_weights'],
@@ -372,7 +372,7 @@ def _make_bert_compatifier(is_pretraining):
                 'next_sentence_labels': tf.constant([0], tf.int32)
             }
 
-            y = data['masked_lm_weights']
+            # y = data['masked_lm_weights']
 
         else:
             x = {
@@ -381,10 +381,10 @@ def _make_bert_compatifier(is_pretraining):
                 'input_type_ids': tf.zeros_like(data['token_mask']),  # segment ids
             }
 
-            y = {'outcome': data['outcome'], 'treatment': data['treatment'],
-                 'in_dev': data['in_dev'], 'in_test': data['in_test'], 'in_train': data['in_train'],
-                 'y0': data['y0'], 'y1': data['y1'],
-                 'index': data['index']}
+        y = {'outcome': data['outcome'], 'treatment': data['treatment'],
+             'in_dev': data['in_dev'], 'in_test': data['in_test'], 'in_train': data['in_train'],
+             'y0': data['y0'], 'y1': data['y1'],
+             'index': data['index']}
 
         return x, y
 
@@ -392,7 +392,7 @@ def _make_bert_compatifier(is_pretraining):
 
 
 def dataset_processing(dataset, parser, masker, labeler,
-                       is_pretraining, is_training,
+                       do_masking, is_training,
                        num_splits, dev_splits, test_splits,
                        batch_size,
                        filter_test=False,
@@ -405,7 +405,7 @@ def dataset_processing(dataset, parser, masker, labeler,
     parser function, read the examples, should be based on tf.parse_single_example
     masker function, should provide Bert style masking
     labeler function, produces labels
-    is_pretraining whether to parse as pre-training (if false, classification)
+    do_masking whether to parse as pre-training (if false, classification)
     is_training
     num_splits
     censored_split
@@ -426,7 +426,7 @@ def dataset_processing(dataset, parser, masker, labeler,
                               labeler,  # add a label (unused downstream at time of comment)
                               make_split_document_labels(num_splits, dev_splits, test_splits),  # censor some labels
                               masker,  # Bert style token masking for unsupervised training
-                              _make_bert_compatifier(is_pretraining))  # Limit features to those expected by BERT model
+                              _make_bert_compatifier(do_masking))  # Limit features to those expected by BERT model
 
     dataset = dataset.map(data_processing, 4)
 
@@ -448,7 +448,6 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
                             num_splits, dev_splits, test_splits,
                             tokenizer,
                             is_training,
-                            is_pretraining=False,
                             do_masking=True,
                             filter_test=False,
                             shuffle_buffer_size=100, seed=0, labeler=None):
@@ -486,7 +485,7 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
             input_dataset = tf.data.TFRecordDataset(input)
             processed_dataset = dataset_processing(input_dataset,
                                                    parser, masker, labeler,
-                                                   is_pretraining, is_training,
+                                                   do_masking, is_training,
                                                    num_splits, dev_splits, test_splits,
                                                    batch_size, filter_test, shuffle_buffer_size)
             return processed_dataset
