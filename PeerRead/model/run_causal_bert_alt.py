@@ -117,7 +117,7 @@ flags.DEFINE_string("prediction_file", "../output/predictions.tsv", "path where 
 FLAGS = flags.FLAGS
 
 
-def make_dataset(is_training: bool):
+def make_dataset(is_training: bool, do_masking=False):
     labeler = make_real_labeler(FLAGS.treatment, 'accepted')
 
     tokenizer = tokenization.FullTokenizer(
@@ -133,7 +133,7 @@ def make_dataset(is_training: bool):
         dev_splits=dev_splits,
         test_splits=test_splits,
         tokenizer=tokenizer,
-        do_masking=FLAGS.do_masking,
+        do_masking=do_masking,
         is_training=is_training,
         shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
         seed=FLAGS.seed,
@@ -200,13 +200,13 @@ def main(_):
     #
 
     # the model
-    def _get_dragon_model():
+    def _get_dragon_model(do_masking):
         dragon_model, core_model = (
             bert_models.dragon_model(
                 bert_config,
                 max_seq_length=250,
                 binary_outcome=True,
-                use_unsup=FLAGS.do_masking,
+                use_unsup=do_masking,
                 max_predictions_per_seq=20,
                 unsup_scale=1.))
         dragon_model.optimizer = optimization.create_optimizer(
@@ -225,10 +225,10 @@ def main(_):
 
     # training. strategy.scope context allows use of multiple devices
     with strategy.scope():
-        input_data = make_dataset(is_training=True)
+        input_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
         keras_train_data = input_data.map(_keras_format)
 
-        dragon_model, core_model = _get_dragon_model()
+        dragon_model, core_model = _get_dragon_model(FLAGS.do_masking)
         optimizer = dragon_model.optimizer
 
         if FLAGS.init_checkpoint:
@@ -264,7 +264,11 @@ def main(_):
     # but our experiments showed best results by just reusing the data
     # You can accomodate sample splitting by using the splitting arguments for the dataset creation
 
-    eval_data = make_dataset(is_training=False)
+    eval_data = make_dataset(is_training=False, do_masking=False)
+    dragon_model, core_model = _get_dragon_model(do_masking=False)
+    # TODO: check this
+    checkpoint = tf.train.Checkpoint(model=dragon_model)
+    checkpoint.restore(FLAGS.model_export_path).assert_existing_objects_matched()
 
     with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
         attribute_names = ['in_test',
