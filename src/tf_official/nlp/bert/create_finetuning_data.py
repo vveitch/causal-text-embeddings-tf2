@@ -24,7 +24,7 @@ from absl import app
 from absl import flags
 import tensorflow as tf
 
-from tf_official.nlp.bert import classifier_data_lib, squad_lib
+from src.tf_official.nlp.bert import squad_lib, classifier_data_lib
 
 FLAGS = flags.FLAGS
 

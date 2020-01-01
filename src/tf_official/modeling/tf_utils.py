@@ -21,8 +21,6 @@ from __future__ import print_function
 import six
 import tensorflow as tf
 
-from tf_official.modeling import activations
-
 
 def pack_inputs(inputs):
   """Pack a list of `inputs` tensors to a tuple.
@@ -91,8 +89,8 @@ def get_activation(identifier):
   """
   if isinstance(identifier, six.string_types):
     name_to_fn = {
-        "gelu": activations.gelu,
-        "custom_swish": activations.swish,
+        "gelu": src.tf_official.modeling.activations.gelu,
+        "custom_swish": src.tf_official.modeling.activations.swish,
     }
     identifier = str(identifier).lower()
     if identifier in name_to_fn:

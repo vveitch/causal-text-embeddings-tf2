@@ -30,7 +30,7 @@ import numpy as np
 
 
 import tensorflow.google as tf
-from tf_official.nlp.xlnet import preprocess_utils
+from src.tf_official.nlp.xlnet import preprocess_utils
 import sentencepiece as spm
 
 

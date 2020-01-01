@@ -31,8 +31,8 @@ import sys
 import unittest
 
 import tensorflow as tf  # pylint: disable=g-bad-import-order
-from tf_official.utils.misc import keras_utils
-from tf_official.utils import reference_data
+from src.tf_official.utils.misc import keras_utils
+from src.tf_official import reference_data
 
 
 class GoldenBaseTest(reference_data.BaseTest):

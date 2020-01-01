@@ -22,8 +22,8 @@ import copy
 import tensorflow as tf
 import tensorflow_hub as hub
 
-from tf_official.modeling import tf_utils
-from tf_official.nlp import bert_modeling as modeling
+from src.tf_official.modeling import tf_utils
+from src.tf_official.nlp import bert_modeling as modeling
 
 
 def gather_indexes(sequence_tensor, positions):

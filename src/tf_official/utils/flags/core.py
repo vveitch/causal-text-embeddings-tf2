@@ -27,7 +27,7 @@ from six.moves import shlex_quote
 from absl import app as absl_app
 from absl import flags
 
-from tf_official.utils.flags import _base, _device, _distribution, _performance, _conventions, _benchmark, _misc
+from src.tf_official.utils.flags import _base, _device, _distribution, _performance, _conventions, _benchmark, _misc
 
 
 def set_defaults(**kwargs):

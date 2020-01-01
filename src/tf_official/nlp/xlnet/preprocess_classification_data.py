@@ -28,7 +28,7 @@ import numpy as np
 import tensorflow as tf
 
 import sentencepiece as spm
-from tf_official.nlp.xlnet import preprocess_utils, classifier_utils
+from src.tf_official.nlp.xlnet import preprocess_utils, classifier_utils
 
 flags.DEFINE_bool(
     "overwrite_data",

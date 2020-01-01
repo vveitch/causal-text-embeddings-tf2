@@ -26,7 +26,7 @@ import tempfile
 
 from absl import flags
 
-from tf_official.utils.flags import core as flags_core
+from src.tf_official.utils.flags import core as flags_core
 
 
 def run_synthetic(main, tmp_root, extra_flags=None, synth=True, train_epochs=1,

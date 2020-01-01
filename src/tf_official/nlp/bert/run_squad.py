@@ -28,12 +28,10 @@ from absl import logging
 import tensorflow as tf
 
 # pylint: disable=unused-import,g-import-not-at-top,redefined-outer-name,reimported
-from tf_official.modeling import model_training_utils
-from tf_official.nlp import bert_modeling as modeling
-from tf_official.nlp import bert_models
-from tf_official.nlp import optimization
-from tf_official.nlp.bert import input_pipeline, common_flags, squad_lib, model_saving_utils, tokenization
-from tf_official.utils.misc import keras_utils, tpu_lib
+from src.tf_official.modeling import model_training_utils
+from src.tf_official.nlp import bert_models, bert_modeling as modeling, optimization
+from src.tf_official.nlp.bert import squad_lib, tokenization, common_flags, model_saving_utils, input_pipeline
+from src.tf_official.utils.misc import keras_utils, tpu_lib
 
 flags.DEFINE_enum(
     'mode', 'train_and_predict',

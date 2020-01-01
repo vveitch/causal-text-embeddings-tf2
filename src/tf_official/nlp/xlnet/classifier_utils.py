@@ -16,7 +16,7 @@
 from absl import flags
 from absl import logging
 
-from tf_official.nlp.xlnet import data_utils
+from src.tf_official.nlp.xlnet import data_utils
 
 FLAGS = flags.FLAGS
 

@@ -5,8 +5,8 @@ create (hand-authored and lexical) features for baselines classifiers and save t
 import sys, os, random, glob
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
-from PeerRead.ScienceParse.Paper import Paper
-from PeerRead.ScienceParse.ScienceParseReader import ScienceParseReader
+from src.PeerRead import Paper
+from src.PeerRead import ScienceParseReader
 
 
 def get_PeerRead_hand_features(paper):

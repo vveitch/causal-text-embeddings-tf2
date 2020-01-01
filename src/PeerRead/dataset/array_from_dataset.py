@@ -11,8 +11,8 @@ try:
 except ImportError:
     import numpy.random as random
 
-from tf_official import nlp as tokenization
-from PeerRead.dataset.dataset import make_input_fn_from_file, make_buzzy_based_simulated_labeler
+from src.tf_official import nlp as tokenization
+from src.PeerRead import make_input_fn_from_file, make_buzzy_based_simulated_labeler
 
 
 def dataset_fn_to_df(dataset_fn):

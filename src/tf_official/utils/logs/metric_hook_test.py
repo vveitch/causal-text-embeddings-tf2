@@ -24,8 +24,8 @@ import time
 import tensorflow as tf  # pylint: disable=g-bad-import-order
 from tensorflow.python.training import monitored_session  # pylint: disable=g-bad-import-order
 
-from tf_official.utils.logs import metric_hook
-from tf_official.utils.testing import mock_lib
+from src.tf_official.utils.logs import metric_hook
+from src.tf_official.utils.testing import mock_lib
 
 
 class LoggingMetricHookTest(tf.test.TestCase):

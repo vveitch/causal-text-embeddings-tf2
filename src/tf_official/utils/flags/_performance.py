@@ -23,7 +23,7 @@ import multiprocessing
 from absl import flags    # pylint: disable=g-bad-import-order
 import tensorflow as tf   # pylint: disable=g-bad-import-order
 
-from tf_official.utils import help_wrap
+from src.tf_official import help_wrap
 
 
 # Map string to TensorFlow dtype

@@ -2,7 +2,7 @@ import argparse
 import os
 
 import bert.tokenization as tokenization
-from PeerRead.data_cleaning.process_PeerRead_abstracts import clean_PeerRead_dataset
+from src.PeerRead.data_cleaning import clean_PeerRead_dataset
 
 dataset_names = ['acl_2017',
                   'arxiv.cs.ai_2007-2017',

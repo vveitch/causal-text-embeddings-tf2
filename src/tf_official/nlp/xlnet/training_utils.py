@@ -27,8 +27,8 @@ from absl import logging
 # pytype: disable=attribute-error
 # pylint: disable=g-bare-generic,unused-import
 import tensorflow as tf
-from tf_official.modeling import model_training_utils
-from tf_official.nlp.xlnet import data_utils
+from src.tf_official.modeling import model_training_utils
+from src.tf_official.nlp.xlnet import data_utils
 from typing import Any, Callable, Dict, Text, Optional
 
 _MIN_SUMMARY_STEPS = 10

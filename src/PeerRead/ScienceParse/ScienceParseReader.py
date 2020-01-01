@@ -2,7 +2,7 @@
 import io
 import os
 import json
-from PeerRead.ScienceParse.ScienceParse import ScienceParse
+from src.PeerRead.ScienceParse.ScienceParse import ScienceParse
 
 class ScienceParseReader:
   """

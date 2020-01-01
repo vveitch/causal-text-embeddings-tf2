@@ -19,9 +19,9 @@ from dateutil.parser import parse as parse_date
 import tensorflow as tf
 
 import bert.tokenization as tokenization
-from PeerRead.ScienceParse.Paper import Paper
-from PeerRead.ScienceParse.ScienceParseReader import ScienceParseReader
-from PeerRead.data_cleaning.PeerRead_hand_features import get_PeerRead_hand_features
+from src.PeerRead import Paper
+from src.PeerRead import ScienceParseReader
+from src.PeerRead.data_cleaning import get_PeerRead_hand_features
 
 rng = random.Random(0)
 

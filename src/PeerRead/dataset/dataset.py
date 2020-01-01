@@ -18,8 +18,8 @@ try:
 except ImportError:
     import numpy.random as random
 
-from tf_official import nlp as tokenization
-from PeerRead.dataset.sentence_masking import create_masked_lm_predictions
+from src.tf_official import nlp as tokenization
+from src.PeerRead import create_masked_lm_predictions
 
 # hardcoded because protobuff is not self describing for some bizarre reason
 all_context_features = \

@@ -35,7 +35,7 @@ from six.moves import _thread as thread
 from absl import flags
 import tensorflow as tf
 
-from tf_official.utils.logs import cloud_lib
+from src.tf_official.utils.logs import cloud_lib
 
 METRIC_LOG_FILE_NAME = "metric.log"
 BENCHMARK_RUN_LOG_FILE_NAME = "benchmark_run.log"

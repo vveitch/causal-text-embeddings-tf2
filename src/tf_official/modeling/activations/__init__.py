@@ -13,5 +13,3 @@
 # limitations under the License.
 # ==============================================================================
 """Activations package definition."""
-from tf_official.modeling.activations import gelu
-from tf_official.modeling.activations import swish

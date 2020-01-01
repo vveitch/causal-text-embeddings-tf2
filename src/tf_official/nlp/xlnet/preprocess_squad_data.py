@@ -28,7 +28,7 @@ from absl import logging
 import tensorflow as tf
 
 import sentencepiece as spm
-from tf_official.nlp.xlnet import squad_utils
+from src.tf_official.nlp.xlnet import squad_utils
 
 flags.DEFINE_integer(
     "num_proc", default=1, help="Number of preprocessing processes.")

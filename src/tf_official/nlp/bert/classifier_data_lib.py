@@ -25,7 +25,7 @@ import os
 from absl import logging
 import tensorflow as tf
 
-from tf_official.nlp.bert import tokenization
+from src.tf_official.nlp.bert import tokenization
 
 
 class InputExample(object):

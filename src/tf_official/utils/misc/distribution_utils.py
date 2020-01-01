@@ -24,7 +24,7 @@ import random
 import string
 import tensorflow as tf
 
-from tf_official.utils.misc import tpu_lib
+from src.tf_official.utils.misc import tpu_lib
 
 
 def _collective_communication(all_reduce_alg):

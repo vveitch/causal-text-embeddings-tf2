@@ -30,10 +30,9 @@ from absl import logging
 
 import tensorflow as tf
 # pylint: disable=unused-import
-from tf_official.nlp import xlnet_config
-from tf_official.nlp import xlnet_modeling as modeling
-from tf_official.nlp.xlnet import squad_utils, optimization, training_utils, data_utils
-from tf_official.utils.misc import tpu_lib
+from src.tf_official.nlp import xlnet_config, xlnet_modeling as modeling
+from src.tf_official.nlp.xlnet import squad_utils, optimization, training_utils, data_utils
+from src.tf_official.utils.misc import tpu_lib
 
 flags.DEFINE_string(
     "test_feature_path", default=None, help="Path to feature of test set.")

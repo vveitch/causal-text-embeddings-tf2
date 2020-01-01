@@ -23,7 +23,7 @@ import os
 
 from absl import logging
 import tensorflow as tf
-from tf_official.utils.misc import distribution_utils
+from src.tf_official.utils.misc import distribution_utils
 
 _SUMMARY_TXT = 'training_summary.txt'
 _MIN_SUMMARY_STEPS = 10

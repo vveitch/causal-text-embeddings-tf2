@@ -17,7 +17,7 @@
 import numpy as np
 import tensorflow as tf
 
-from tf_official.utils.accelerator import tpu as tpu_utils
+from src.tf_official.utils.accelerator import tpu as tpu_utils
 
 TEST_CASES = [
     dict(embedding_dim=256, vocab_size=1000, sequence_length=64,

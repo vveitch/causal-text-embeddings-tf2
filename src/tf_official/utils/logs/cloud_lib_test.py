@@ -24,7 +24,7 @@ import unittest
 import mock
 import requests
 
-from tf_official.utils.logs import cloud_lib
+from src.tf_official.utils.logs import cloud_lib
 
 
 class CloudLibTest(unittest.TestCase):

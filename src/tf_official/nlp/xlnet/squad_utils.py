@@ -31,7 +31,7 @@ import numpy as np
 import six
 import tensorflow as tf
 
-from tf_official.nlp.xlnet import preprocess_utils, data_utils
+from src.tf_official.nlp.xlnet import preprocess_utils, data_utils
 
 SPIECE_UNDERLINE = u"▁"
 

@@ -23,7 +23,7 @@ from absl import flags
 import tensorflow as tf
 from typing import Text
 
-from tf_official.nlp import bert_modeling
+from src.tf_official.nlp import bert_modeling
 
 FLAGS = flags.FLAGS
 

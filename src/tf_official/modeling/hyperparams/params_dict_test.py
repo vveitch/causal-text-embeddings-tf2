@@ -20,7 +20,7 @@ import os
 import tensorflow as tf
 import yaml
 
-from tf_official.modeling.hyperparams import params_dict
+from src.tf_official.modeling.hyperparams import params_dict
 
 
 class ParamsDictTest(tf.test.TestCase):

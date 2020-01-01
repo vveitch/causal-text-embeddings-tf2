@@ -20,7 +20,7 @@ from __future__ import print_function
 
 from absl import logging
 import tensorflow as tf
-from tf_official.nlp import optimization
+from src.tf_official.nlp import optimization
 
 
 class WarmUp(tf.keras.optimizers.schedules.LearningRateSchedule):

@@ -20,7 +20,7 @@ from __future__ import print_function
 
 from absl import flags
 
-from tf_official.utils import help_wrap
+from src.tf_official import help_wrap
 
 
 def define_image(data_format=True):
