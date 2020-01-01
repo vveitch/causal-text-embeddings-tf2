@@ -1,5 +1,5 @@
 # Causal-Bert TF2
-This is a reference tensorflow 2.0 implementation of the "causal bert" method described in  [Using Text Embeddings for Causal Inference](arxiv.org/abs/1905.12741).
+This is a reference Tensorflow 2 implementation of the "causal bert" method described in  [Using Text Embeddings for Causal Inference](arxiv.org/abs/1905.12741).
 This method provides a way to estimate causal effects when either 
 (1) a treatment and outcome are both influenced by confounders, and information about the confounding is contained in a 
 text passage. For example, we consider estimating the effect of adding a theorem to a paper on whether or not the paper 
