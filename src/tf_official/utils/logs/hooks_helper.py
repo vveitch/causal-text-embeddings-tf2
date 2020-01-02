@@ -26,7 +26,7 @@ from __future__ import print_function
 
 import tensorflow as tf  # pylint: disable=g-bad-import-order
 
-from src.tf_official.utils.logs import logger, metric_hook, hooks
+from tf_official.utils.logs import logger, metric_hook, hooks
 
 _TENSORS_TO_LOG = dict((x, x) for x in ['learning_rate',
                                         'cross_entropy',

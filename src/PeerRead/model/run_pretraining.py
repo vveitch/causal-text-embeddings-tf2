@@ -26,12 +26,12 @@ from absl import logging
 import tensorflow as tf
 
 # pylint: disable=unused-import,g-import-not-at-top,redefined-outer-name,reimported
-from src.tf_official.modeling import model_training_utils
-from src.tf_official.nlp import bert_models, bert_modeling as modeling, optimization
-from src.tf_official.nlp.bert import tokenization, common_flags, model_saving_utils, input_pipeline
-from src.tf_official.utils.misc import tpu_lib
+from tf_official.modeling import model_training_utils
+from tf_official.nlp import bert_models, bert_modeling as modeling, optimization
+from tf_official.nlp.bert import tokenization, common_flags, model_saving_utils, input_pipeline
+from tf_official.utils.misc import tpu_lib
 
-from src.PeerRead import make_input_fn_from_file
+from PeerRead import make_input_fn_from_file
 
 flags.DEFINE_string('input_files', None,
                     'File path to retrieve training data for pre-training.')

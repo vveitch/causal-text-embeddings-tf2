@@ -21,8 +21,8 @@ from __future__ import print_function
 import tensorflow as tf
 import tensorflow_hub as hub
 
-from src.tf_official.nlp import bert_modeling as modeling
-from src.tf_official.nlp.bert_models import pretrain_model
+from tf_official.nlp import bert_modeling as modeling
+from tf_official.nlp.bert_models import pretrain_model
 
 
 def get_dragon_heads(binary_outcome: bool):

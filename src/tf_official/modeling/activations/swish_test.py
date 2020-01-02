@@ -27,7 +27,7 @@ from tensorflow.python.keras import keras_parameterized  # pylint: disable=g-dir
 class CustomizedSwishTest(keras_parameterized.TestCase):
 
   def test_gelu(self):
-    customized_swish_data = src.tf_official.modeling.activations.swish([[.25, 0, -.25], [-1, -2, 3]])
+    customized_swish_data = tf_official.modeling.activations.swish([[.25, 0, -.25], [-1, -2, 3]])
     swish_data = tf.nn.swish([[.25, 0, -.25], [-1, -2, 3]])
     self.assertAllClose(customized_swish_data, swish_data)
 

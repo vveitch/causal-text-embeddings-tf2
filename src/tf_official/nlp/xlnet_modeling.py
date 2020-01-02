@@ -23,7 +23,7 @@ import copy
 import numpy as np
 
 import tensorflow as tf
-from src.tf_official.nlp.xlnet import data_utils
+from tf_official.nlp.xlnet import data_utils
 
 
 def gelu(x):

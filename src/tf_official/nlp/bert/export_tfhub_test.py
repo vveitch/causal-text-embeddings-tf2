@@ -24,8 +24,8 @@ import numpy as np
 
 import tensorflow as tf
 import tensorflow_hub as hub
-from src.tf_official.nlp import bert_modeling
-from src.tf_official.nlp.bert import export_tfhub
+from tf_official.nlp import bert_modeling
+from tf_official.nlp.bert import export_tfhub
 
 
 class ExportTfhubTest(tf.test.TestCase):

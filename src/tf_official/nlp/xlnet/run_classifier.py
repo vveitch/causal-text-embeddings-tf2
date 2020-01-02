@@ -27,9 +27,9 @@ from absl import logging
 import numpy as np
 import tensorflow as tf
 # pylint: disable=unused-import
-from src.tf_official.nlp import xlnet_config, xlnet_modeling as modeling
-from src.tf_official.nlp.xlnet import optimization, training_utils, data_utils
-from src.tf_official.utils.misc import tpu_lib
+from tf_official.nlp import xlnet_config, xlnet_modeling as modeling
+from tf_official.nlp.xlnet import optimization, training_utils, data_utils
+from tf_official.utils.misc import tpu_lib
 
 flags.DEFINE_integer("n_class", default=2, help="Number of classes.")
 

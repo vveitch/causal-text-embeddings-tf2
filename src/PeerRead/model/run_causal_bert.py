@@ -26,13 +26,13 @@ from absl import flags
 import tensorflow as tf
 
 # pylint: disable=g-import-not-at-top,redefined-outer-name,reimported
-from src.tf_official.nlp import bert_modeling as modeling, optimization
+from tf_official.nlp import bert_modeling as modeling, optimization
 # from nlp import bert_models
-from src.tf_official.nlp.bert import tokenization, common_flags, model_saving_utils
-from src.tf_official.utils.misc import tpu_lib
-from src.causal_bert import bert_models
+from tf_official.nlp.bert import tokenization, common_flags, model_saving_utils
+from tf_official.utils.misc import tpu_lib
+from causal_bert import bert_models
 
-from src.PeerRead import make_input_fn_from_file, make_real_labeler
+from PeerRead.dataset.dataset import make_input_fn_from_file, make_real_labeler
 
 common_flags.define_common_bert_flags()
 

@@ -21,7 +21,7 @@ from __future__ import print_function
 from absl import flags
 import tensorflow as tf
 
-from src.tf_official import help_wrap
+from tf_official.utils.flags._conventions import help_wrap
 
 
 def require_cloud_storage(flag_names):

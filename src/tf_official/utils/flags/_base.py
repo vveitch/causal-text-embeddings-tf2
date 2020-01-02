@@ -20,8 +20,8 @@ from __future__ import print_function
 
 from absl import flags
 
-from src.tf_official import help_wrap
-from src.tf_official.utils.logs import hooks_helper
+from tf_official.utils.flags._conventions import help_wrap
+from tf_official.utils.logs import hooks_helper
 
 
 def define_base(data_dir=True, model_dir=True, clean=False, train_epochs=False,

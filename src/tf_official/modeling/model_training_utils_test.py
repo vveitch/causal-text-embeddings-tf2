@@ -26,7 +26,7 @@ import tensorflow as tf
 
 from tensorflow.python.distribute import combinations
 from tensorflow.python.distribute import strategy_combinations
-from src.tf_official.modeling import model_training_utils
+from tf_official.modeling import model_training_utils
 
 
 def eager_strategy_combinations():

@@ -34,8 +34,8 @@ try:
 except ImportError:
   bigquery = None
 
-from src.tf_official.utils.flags import core as flags_core
-from src.tf_official.utils.logs import logger
+from tf_official.utils.flags import core as flags_core
+from tf_official.utils.logs import logger
 
 
 class BenchmarkLoggerTest(tf.test.TestCase):

@@ -20,7 +20,7 @@ from __future__ import print_function
 
 import tensorflow as tf  # pylint: disable=g-bad-import-order
 
-from src.tf_official.utils.misc import distribution_utils
+from tf_official.utils.misc import distribution_utils
 
 
 class GetDistributionStrategyTest(tf.test.TestCase):

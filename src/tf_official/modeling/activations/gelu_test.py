@@ -29,7 +29,7 @@ class GeluTest(keras_parameterized.TestCase):
   def test_gelu(self):
     expected_data = [[0.14967535, 0., -0.10032465],
                      [-0.15880796, -0.04540223, 2.9963627]]
-    gelu_data = src.tf_official.modeling.activations.gelu([[.25, 0, -.25], [-1, -2, 3]])
+    gelu_data = tf_official.modeling.activations.gelu([[.25, 0, -.25], [-1, -2, 3]])
     self.assertAllClose(expected_data, gelu_data)
 
 

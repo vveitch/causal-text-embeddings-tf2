@@ -20,7 +20,7 @@ from __future__ import print_function
 
 from absl import flags
 
-from src.tf_official import help_wrap
+from tf_official.utils.flags._conventions import help_wrap
 
 
 def define_benchmark(benchmark_log_dir=True, bigquery_uploader=True):

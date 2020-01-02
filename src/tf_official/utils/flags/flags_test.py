@@ -18,7 +18,7 @@ import unittest
 from absl import flags
 import tensorflow as tf
 
-from src.tf_official.utils.flags import core as flags_core
+from tf_official.utils.flags import core as flags_core
 
 
 def define_flags():

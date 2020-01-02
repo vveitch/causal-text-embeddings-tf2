@@ -15,17 +15,17 @@ All code in tf_official is taken from https://github.com/tensorflow/models/tree/
 
 # Instructions
 1. Download BERT-Base, Uncased pre-trained model following instructions at https://github.com/tensorflow/models/tree/master/official/nlp/bert
-Extract to pre-trained/uncased_L-12_H-768_A-12
+Extract to ../pre-trained/uncased_L-12_H-768_A-12
 
 2. in src/  
 `run python -m PeerRead.model.run_causal_bert \
 --input_files=../dat/PeerRead/proc/arxiv-all.tf_record \ 
---bert_config_file=pre-trained/uncased_L-12_H-768_A-12/bert_config.json \ 
---init_checkpoint=pre-trained/uncased_L-12_H-768_A-12/bert_model.ckpt \ 
---vocab_file=pre-trained/uncased_L-12_H-768_A-12/vocab.txt \ 
+--bert_config_file=../pre-trained/uncased_L-12_H-768_A-12/bert_config.json \ 
+--init_checkpoint=../pre-trained/uncased_L-12_H-768_A-12/bert_model.ckpt \ 
+--vocab_file=../pre-trained/uncased_L-12_H-768_A-12/vocab.txt \ 
 --seed=0 \ 
 --strategy_type=mirror \ 
---train_batch_size=4`
+--train_batch_size=32`
 
 # Notes
 1. code tested w/ tf-nightly build on Dec 31, 2019. Note that run_causal_bert does not work with tf 2.0 
