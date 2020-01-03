@@ -87,8 +87,13 @@ flags.DEFINE_string("test_splits", '9', "indices of test splits")
 # Flags specifically related to PeerRead experiment
 
 flags.DEFINE_string(
-    "treatment", "theorem_referenced",
+    "treatment", "venue",
     "Covariate used as treatment."
+)
+
+flags.DEFINE_integer(
+    "num_treatments", 9,
+    "number of levels of treatment covariate."
 )
 
 flags.DEFINE_string("simulated", 'real', "whether to use real data ('real'), attribute based ('attribute'), "
@@ -134,26 +139,26 @@ def make_dataset(is_training: bool, do_masking=False):
     return train_input_fn(params={'batch_size': batch_size})
 
 
-def make_dragonnet_metrics():
+def make_dragonnet_metrics(num_treatments):
     METRICS = [
-        tf.keras.metrics.TruePositives,
-        tf.keras.metrics.FalsePositives,
-        tf.keras.metrics.TrueNegatives,
-        tf.keras.metrics.FalseNegatives,
         tf.keras.metrics.BinaryAccuracy,
         tf.keras.metrics.Precision,
         tf.keras.metrics.Recall,
         tf.keras.metrics.AUC
     ]
 
-    NAMES = ['true_positive', 'false_positive', 'true_negative', 'false_negative',
-             'binary_accuracy', 'precision', 'recall', 'auc']
+    NAMES = ['binary_accuracy', 'precision', 'recall', 'auc']
 
-    g_metrics = [m(name=n) for m, n in zip(METRICS, NAMES)]
-    q0_metrics = [m(name=n) for m, n in zip(METRICS, NAMES)]
-    q1_metrics = [m(name=n) for m, n in zip(METRICS, NAMES)]
+    g_metrics = [tf.keras.metrics.SparseCategoricalAccuracy()]
+    metrics = {'g': g_metrics}
 
-    return {'g': g_metrics, 'q0': q0_metrics, 'q1': q1_metrics}
+    # metrics = {}
+
+    for treat in range(num_treatments):
+        q_metric = [m(name=n) for m, n in zip(METRICS, NAMES)]
+        metrics[f"q{treat}"] = q_metric
+
+    return metrics
 
 
 def main(_):
@@ -189,13 +194,16 @@ def main(_):
     # Modeling and training
     #
 
+    num_treatments = FLAGS.num_treatments
+
     # the model
-    def _get_dragon_model(do_masking):
+    def _get_hydra_model(do_masking):
         dragon_model, core_model = (
-            bert_models.dragon_model(
+            bert_models.hydra_model(
                 bert_config,
                 max_seq_length=250,
                 binary_outcome=True,
+                num_treatments=num_treatments,
                 use_unsup=do_masking,
                 max_predictions_per_seq=20,
                 unsup_scale=1.))
@@ -204,31 +212,44 @@ def main(_):
         return dragon_model, core_model
 
     # we'll need a hack to let keras loss depend on multiple labels. Which is just plain stupid design.
-    @tf.function
-    def _keras_format(features, labels):
-        # features, labels = sample
-        y = labels['outcome']
-        t = tf.cast(labels['treatment'], tf.float32)
-        labels = {'g': labels['treatment'], 'q0': y, 'q1': y}
-        sample_weights = {'q0': 1-t, 'q1': t}
-        return features, labels, sample_weights
+    def make_keras_format(num_treatments):
+        @tf.function
+        def _keras_format(features, labels):
+            # features, labels = sample
+            y = labels['outcome']
+            t = tf.cast(labels['treatment'], tf.float32)
+            labels = {'g': labels['treatment']}
+            sample_weights = {}
+            for treat in range(num_treatments):
+                labels[f"q{treat}"] = y
+                treat_active = tf.equal(t, treat)
+                sample_weights[f"q{treat}"] = tf.cast(treat_active, tf.float32)
+            return features, labels, sample_weights
+
+        return _keras_format
 
     # training. strategy.scope context allows use of multiple devices
     with strategy.scope():
         input_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
-        keras_train_data = input_data.map(_keras_format)
+        keras_train_data = input_data.map(make_keras_format(num_treatments))
 
-        dragon_model, core_model = _get_dragon_model(FLAGS.do_masking)
-        optimizer = dragon_model.optimizer
+        hydra_model, core_model = _get_hydra_model(FLAGS.do_masking)
+        optimizer = hydra_model.optimizer
 
         if FLAGS.init_checkpoint:
             checkpoint = tf.train.Checkpoint(model=core_model)
             checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
-        dragon_model.compile(optimizer=optimizer,
-                             loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy', 'q1': 'binary_crossentropy'},
-                             loss_weights={'g': 0.8, 'q0': 0.1, 'q1': 0.1},
-                             weighted_metrics=make_dragonnet_metrics())
+        losses = {'g': 'sparse_categorical_crossentropy'}
+        loss_weights = {'g': 0.8}
+        for treat in range(num_treatments):
+            losses[f"q{treat}"] = 'binary_crossentropy'
+            loss_weights[f"q{treat}"] = 0.1
+
+        hydra_model.compile(optimizer=optimizer,
+                             loss=losses,
+                             loss_weights=loss_weights,
+                             weighted_metrics=make_dragonnet_metrics(num_treatments))
 
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=640)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
@@ -236,7 +257,7 @@ def main(_):
 
         callbacks = [summary_callback, checkpoint_callback]
 
-        dragon_model.fit(
+        hydra_model.fit(
             x=keras_train_data,
             # validation_data=evaluation_dataset,
             steps_per_epoch=steps_per_epoch,
@@ -247,7 +268,7 @@ def main(_):
     # save the model
     if FLAGS.model_export_path:
         model_saving_utils.export_bert_model(
-            FLAGS.model_export_path, model=dragon_model)
+            FLAGS.model_export_path, model=hydra_model)
 
     # make predictions and write to file
     # NOTE: theory suggests we should make predictions on heldout data ("cross fitting" or "sample splitting")
@@ -255,11 +276,12 @@ def main(_):
     # You can accomodate sample splitting by using the splitting arguments for the dataset creation
 
     eval_data = make_dataset(is_training=False, do_masking=False)
-    dragon_model, core_model = _get_dragon_model(do_masking=False)
+    hydra_model, core_model = _get_hydra_model(do_masking=False)
     # TODO: check this
-    checkpoint = tf.train.Checkpoint(model=dragon_model)
+    checkpoint = tf.train.Checkpoint(model=hydra_model)
     checkpoint.restore(FLAGS.model_export_path).assert_existing_objects_matched()
 
+    # TODO: needs rewrite
     with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
         attribute_names = ['in_test',
                            'treatment_probability',
@@ -271,7 +293,7 @@ def main(_):
         writer.write(header)
 
         for f, l in eval_data:
-            g_pred, q0_pred, q1_pred = dragon_model.predict(f)
+            g_pred, q0_pred, q1_pred = hydra_model.predict(f)
             attributes = [l['in_test'].numpy(),
                           g_pred, q1_pred, q0_pred,
                           l['outcome'].numpy(), l['treatment'].numpy(), l['index'].numpy()]

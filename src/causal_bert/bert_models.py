@@ -54,6 +54,34 @@ def get_dragon_heads(binary_outcome: bool):
     return dragon_heads
 
 
+def get_hydra_heads(binary_outcome: bool, num_treatments: int):
+    """
+    A variant of dragonnet allowing possibly many treatment levels
+
+    Returns: a keras layer with signature
+    [float vector] -> {g: float, Q0: float, Q1: float}
+    """
+
+    def hydra_heads(z: tf.Tensor):
+        g = tf.keras.layers.Dense(num_treatments, activation='sigmoid', name='g')(z)
+
+        if binary_outcome:
+            activation = 'sigmoid'
+        else:
+            activation = None
+
+        qz = tf.keras.layers.Dense(200, activation='relu')(z)
+        qz = tf.keras.layers.Dense(200, activation='relu')(qz)
+
+        q = []
+        for treat in range(num_treatments):
+            q.append(tf.keras.layers.Dense(1, activation=activation, name=f"q{treat}")(qz))
+
+        return g, q
+
+    return hydra_heads
+
+
 def dragon_model_simple(bert_config,
                         max_seq_length: int,
                         binary_outcome: bool,
@@ -139,7 +167,8 @@ def dragon_model(bert_config,
 
         inputs = pt_model.input
         unsup_loss = pt_model.outputs[0]
-        unsup_loss = unsup_scale*tf.reduce_mean(unsup_loss)  # average over both masked words in sentences and over batch
+        unsup_loss = unsup_scale * tf.reduce_mean(
+            unsup_loss)  # average over both masked words in sentences and over batch
 
     else:
         input_word_ids = tf.keras.layers.Input(
@@ -178,6 +207,81 @@ def dragon_model(bert_config,
     dragon_model.add_loss(unsup_loss)
 
     return dragon_model, bert_model
+
+
+def hydra_model(bert_config,
+                max_seq_length: int,
+                binary_outcome: bool,
+                num_treatments: int,
+                use_unsup=False,
+                max_predictions_per_seq=20,
+                unsup_scale=1.):
+    """BERT hydra model in functional API style.
+
+    Args:
+      bert_config: BertConfig, the config defines the core BERT model.
+      max_seq_length: integer, the maximum input sequence length.
+      binary_outcome: bool, whether outcome is binary
+      num_treatments: number of treatment categories
+      use_unsup: bool, whether to predict censored input words (requires same input features as bert pre-training)
+      max_predictions_per_seq: integer, maximum number of input words that are censored
+      unsup_scale: factor by which to scale unsupervised loss
+
+
+    Returns:
+      Combined prediction model (words, sample_weight, type) -> {g: float, Q0: float, Q1: float}
+        if use_unsup=True this model has a loss term reflecting the unsupervised training objective
+      BERT model
+    """
+
+    if use_unsup:
+        pt_model, bert_model = pretrain_model(bert_config,
+                                              max_seq_length,
+                                              max_predictions_per_seq,
+                                              initializer=None)
+
+        inputs = pt_model.input
+        unsup_loss = pt_model.outputs[0]
+        unsup_loss = unsup_scale * tf.reduce_mean(
+            unsup_loss)  # average over both masked words in sentences and over batch
+
+    else:
+        input_word_ids = tf.keras.layers.Input(
+            shape=(max_seq_length,), dtype=tf.int32, name='input_word_ids')
+        input_mask = tf.keras.layers.Input(
+            shape=(max_seq_length,), dtype=tf.int32, name='input_mask')
+        input_type_ids = tf.keras.layers.Input(
+            shape=(max_seq_length,), dtype=tf.int32, name='input_type_ids')
+
+        inputs = {
+            'input_word_ids': input_word_ids,
+            'input_mask': input_mask,
+            'input_type_ids': input_type_ids
+        }
+
+        bert_model = modeling.get_bert_model(
+            input_word_ids,
+            input_mask,
+            input_type_ids,
+            config=bert_config)
+
+        unsup_loss = 0.
+
+    pooled_output = bert_model.outputs[0]
+
+    head_model = get_hydra_heads(binary_outcome, num_treatments)
+    outputs = head_model(pooled_output)
+
+    # output = tf.keras.layers.Dropout(rate=bert_config.hidden_dropout_prob)(
+    #     pooled_output)
+
+    hydra_model = tf.keras.Model(
+        inputs=inputs,
+        outputs=outputs)
+
+    hydra_model.add_loss(unsup_loss)
+
+    return hydra_model, bert_model
 
 
 def classifier_model(bert_config,
