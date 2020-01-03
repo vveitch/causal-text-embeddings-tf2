@@ -149,9 +149,9 @@ def make_dragonnet_metrics():
     NAMES = ['true_positive', 'false_positive', 'true_negative', 'false_negative',
              'binary_accuracy', 'precision', 'recall', 'auc']
 
-    g_metrics = [m(name=n) for m, n in zip(METRICS, NAMES)]
-    q0_metrics = [m(name=n) for m, n in zip(METRICS, NAMES)]
-    q1_metrics = [m(name=n) for m, n in zip(METRICS, NAMES)]
+    g_metrics = [m(name='g/'+n) for m, n in zip(METRICS, NAMES)]
+    q0_metrics = [m(name='q0/'+n) for m, n in zip(METRICS, NAMES)]
+    q1_metrics = [m(name='q1/'+n) for m, n in zip(METRICS, NAMES)]
 
     return {'g': g_metrics, 'q0': q0_metrics, 'q1': q1_metrics}
 
@@ -230,7 +230,7 @@ def main(_):
                              loss_weights={'g': 0.8, 'q0': 0.1, 'q1': 0.1},
                              weighted_metrics=make_dragonnet_metrics())
 
-        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=640)
+        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=100)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
         checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir)
 
