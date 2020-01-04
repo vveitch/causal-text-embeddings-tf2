@@ -2,11 +2,16 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import numpy as np
+import pandas as pd
 import tensorflow as tf
+import time
+
+from PeerRead.dataset.dataset import make_unprocessed_PeerRead_dataset
+
+MININT = -2147483648
 
 
-# dynamic word piece masking for BERT models
-# sort-of adapted from The Google AI Language Team Authors (Apache 2018)
 def create_masked_lm_predictions(token_ids: tf.Tensor,
                                  masked_lm_prob: float,
                                  max_predictions_per_seq: int,
@@ -65,8 +70,254 @@ def create_masked_lm_predictions(token_ids: tf.Tensor,
     return output_ids, masked_lm_positions, masked_lm_ids, masked_lm_weights
 
 
-def main(_):
-    pass
+def _decode_record(record, name_to_features):
+    """Decodes a record to a TensorFlow example."""
+    example = tf.io.parse_single_example(record, name_to_features)
+
+    # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
+    # So cast all int64 to int32.
+    for name in list(example.keys()):
+        t = example[name]
+        if t.dtype == tf.int64:
+            t = tf.cast(t, tf.int32)
+        example[name] = t
+
+    return example
+
+
+def _make_input_id_masker(tokenizer, seed):
+    # (One of) Bert's unsupervised objectives is to mask some fraction of the input words and predict the masked words
+
+    def masker(data):
+        token_ids = data['input_ids']
+        maybe_masked_input_ids, masked_lm_positions, masked_lm_ids, masked_lm_weights = create_masked_lm_predictions(
+            token_ids,
+            # pre-training defaults from Bert docs
+            masked_lm_prob=0.15,
+            max_predictions_per_seq=20,
+            vocab=tokenizer.vocab,
+            seed=seed)
+        return {
+            **data,
+            'input_ids': maybe_masked_input_ids,
+            'masked_lm_positions': masked_lm_positions,
+            'masked_lm_ids': masked_lm_ids,
+            'masked_lm_weights': masked_lm_weights
+        }
+
+    return masker
+
+
+def load_basic_bert_data(file_paths,
+                         seq_length,
+                         is_training=True,
+                         input_pipeline_context=None):
+    name_to_features = {
+        'token_ids':
+            tf.io.FixedLenFeature([seq_length], tf.int64),
+        'token_mask':
+            tf.io.FixedLenFeature([seq_length], tf.int64),
+        'id':
+            tf.io.FixedLenFeature([1], tf.int64),
+    }
+
+    dataset = tf.data.Dataset.list_files(file_paths, shuffle=is_training)
+
+    if input_pipeline_context and input_pipeline_context.num_input_pipelines > 1:
+        dataset = dataset.shard(input_pipeline_context.num_input_pipelines,
+                                input_pipeline_context.input_pipeline_id)
+
+    if is_training:
+        dataset = dataset.repeat()
+        # We set shuffle buffer to exactly match total number of
+        # training files to ensure that training data is well shuffled.
+        dataset = dataset.shuffle(len(file_paths))
+
+    # In parallel, create tf record dataset for each train files.
+    # cycle_length = 8 means that up to 8 files will be read and deserialized in
+    # parallel. You may want to increase this number if you have a large number of
+    # CPU cores.
+    dataset = dataset.interleave(
+        tf.data.TFRecordDataset, cycle_length=8,
+        num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    decode_fn = lambda record: _decode_record(record, name_to_features)
+    dataset = dataset.map(
+        decode_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    def _fake_input_ids(data):
+        data['input_type_ids']: tf.zeros_like(data['token_mask'])  # segment ids
+        return data
+
+    dataset = dataset.map(_fake_input_ids, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    return dataset
+
+
+def dataset_to_pandas_df(dataset):
+    samples = []
+
+    for sample in iter(dataset):
+        numpy_sample = {k: v.numpy() for k, v in sample.items()}
+        samples += [numpy_sample]
+
+    df = pd.DataFrame(samples)
+
+    return df
+
+
+def _make_labeling(label_df: pd.DataFrame):
+    """
+    helper function for dataset_labels_from_pandas
+    """
+    # todo: produce meta-data here?
+    label_df = label_df.copy()
+    label_df = label_df.sort_values('id')  # so we can use tf.search_sorted
+
+    ids = tf.convert_to_tensor(label_df.id, tf.int32)
+    label_df = label_df.drop(columns=['id'])
+    all_labels = {}
+    for name, series in label_df.iteritems():
+        # if it's an int or a string, factorize it
+        if not np.issubdtype(series, np.floating):
+            value = series.factorize()[0]
+        else:
+            value = series.values
+        all_labels[name] = tf.convert_to_tensor(value)
+
+    @tf.function
+    def labeling(data: dict, labels=None):
+        id = data['id']
+        idx = tf.searchsorted(ids, id, out_type=tf.int32)
+
+        in_label_df = tf.equal(id, tf.gather(ids, idx))
+
+        if labels is None:
+            labels = {}
+        for k, v in all_labels.items():
+            value = tf.gather(v, idx)
+            labels[k] = tf.where(in_label_df, value, MININT * tf.ones_like(value))  # if example not in label_df
+
+        labels['in_label_df'] = in_label_df
+
+        return data, labels
+
+    return labeling
+
+
+# moderately faster sampling
+def _make_labeling_v2(label_df: pd.DataFrame, do_factorize=False):
+    """
+    helper function for dataset_labels_from_pandas
+    """
+    # todo: produce meta-data here?
+    label_df = label_df.copy()
+    label_df = label_df.sort_values('id')  # so we can use tf.search_sorted
+
+    ids = tf.convert_to_tensor(label_df.id, tf.int32)
+    label_df = label_df.drop(columns=['id'])
+
+    def _factorize_nonfloats(col):
+        if not np.issubdtype(col, np.floating):
+            return pd.factorize(col)[0]
+        else:
+            return col
+
+    label_df = label_df.apply(_factorize_nonfloats, axis=0)
+
+    int_df = label_df.select_dtypes(include='int')
+    int_names = list(int_df.keys())
+    int_values = tf.convert_to_tensor(int_df.values, dtype=tf.int32)
+    num_ints = len(int_names)
+
+    float_df = label_df.select_dtypes(include='float')
+    float_names = list(float_df.keys())
+    float_values = tf.convert_to_tensor(float_df.values, dtype=tf.float32)
+    num_floats = len(float_names)
+
+    @tf.function
+    def labeling(data: dict, labels=None):
+        id = data['id']
+        idx = tf.searchsorted(ids, id, out_type=tf.int32)
+
+        in_label_df = tf.equal(id, tf.gather(ids, idx))
+
+        if labels is None:
+            labels = {}
+
+        if num_ints > 0:
+            samp_int_vals = tf.gather(int_values, idx)
+            samp_int_list = tf.split(samp_int_vals, num_ints, axis=1)
+            for n, v in zip(int_names, samp_int_list):
+                labels[n] = v[:, 0]
+
+        if num_floats > 0:
+            samp_float_vals = tf.gather(float_values, idx)
+            samp_float_list = tf.split(samp_float_vals, num_floats, axis=1)
+            for n, v in zip(float_names, samp_float_list):
+                labels[n] = v[:, 0]
+
+        labels['in_label_df'] = in_label_df
+
+        return data, labels
+
+    return labeling
+
+
+def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame, filter_labeled=True):
+    """
+    Produce a tensorflow dataset with labels by merging a dataset without labels and pandas dataframe
+
+    takes a tensorflow dataset that yields a dictionary (i.e., features only) where one key of that dictionary is 'id',
+    and a pandas dataframe where one column is 'id', and the other columns are labels of the example w/ that id.
+    Returns a tensorflow dataset where examples include the labels.
+    Typical use case is when a model has complicated unsupervised pre-processing which may be used for many possible
+    prediction tasks
+
+    Args:
+        dataset: tf.data.Dataset. Must yield a dictionary which has key 'index'
+        label_df: pd.DataFrame. The index should contain (a subset of) the values of 'index' in the tensorflow dataset.
+            Each column should either be categorical or numerical. NaNs are allowed
+
+    Returns: tf.data.Dataset that yields (original, labels_from_pandas)
+
+    """
+    labeling = _make_labeling_v2(label_df)
+    lab_dataset = dataset.map(
+        labeling, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    if filter_labeled:
+        lab_dataset = lab_dataset.filter(lambda d, l: tf.squeeze(l['in_label_df']))
+
+    return lab_dataset
+
+
+def main():
+    label_df = pd.read_feather('dat/PeerRead/proc/arxiv-all-labels-only.feather')
+    dataset = load_basic_bert_data('dat/PeerRead/proc/arxiv-all.tf_record', 250,
+                                   is_training=False)
+    # label_df = label_df[['id','abstract_contains_deep', 'abstract_contains_embedding']]
+
+    data = dataset_labels_from_pandas(dataset, label_df)
+    data = data.repeat()
+    data = data.batch(32)
+    data.shuffle(100)
+
+    t0 = time.time()
+    dit = data.take(1000)
+    for samp in dit:
+        s = samp
+    t1 = time.time()
+    print(t1 - t0)
+    # data = make_unprocessed_PeerRead_dataset('../dat/PeerRead/proc/arxiv-all.tf_record', 250)
+    #
+    # label_df = dataset_to_pandas_df(data)
+    #
+    # # note: feather can't handle nested types
+    # # label_df.to_feather('../dat/PeerRead/proc/arxiv-all.feather')
+    #
+    # label_df = label_df.drop(columns=['token_ids', 'token_mask', 'index'])
+    # label_df.to_feather('../dat/PeerRead/proc/arxiv-all-labels-only.feather')
 
 
 if __name__ == "__main__":

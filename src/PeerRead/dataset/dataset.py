@@ -496,6 +496,34 @@ def make_dataset_fn_from_file(input_files_or_glob, seq_length,
     return input_fn
 
 
+def make_unprocessed_PeerRead_dataset(input_files_or_glob, seq_length):
+    """
+    Utility to load and parse the full data with no batching, shuffling, relabeling, etc
+
+    Args:
+        input_files_or_glob:
+        seq_length:
+
+    Returns:
+
+    """
+
+    dataset = tf.data.Dataset.list_files(input_files_or_glob, shuffle=False)
+    dataset = dataset.interleave(
+        tf.data.TFRecordDataset, cycle_length=8,
+        num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    # make the record parsing ops
+    max_abstract_len = seq_length
+
+    parser = make_parser(max_abstract_len)  # parse the tf_record
+    parser = compose(parser, make_extra_feature_cleaning())
+
+    dataset = dataset.map(parser)
+
+    return dataset
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--shuffle_buffer_size', type=int, default=100)

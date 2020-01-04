@@ -37,7 +37,7 @@ def define_image(data_format=True):
 
   if data_format:
     flags.DEFINE_enum(
-        name="data_format", short_name="df", default=None,
+        name="data_format", short_name="label_df", default=None,
         enum_values=["channels_first", "channels_last"],
         help=help_wrap(
             "A flag to override the data format used in the model. "
