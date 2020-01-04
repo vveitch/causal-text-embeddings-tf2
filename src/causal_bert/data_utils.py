@@ -294,6 +294,10 @@ def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame,
 
 def main():
     label_df = pd.read_feather('dat/PeerRead/proc/arxiv-all-labels-only.feather')
+    mry = label_df.most_recent_reference_year
+    mry[label_df.most_recent_reference_year < 0] = np.NaN
+    label_df.most_recent_reference_year = pd.array(mry, dtype='int64')
+
     dataset = load_basic_bert_data('dat/PeerRead/proc/arxiv-all.tf_record', 250,
                                    is_training=False)
     # label_df = label_df[['id','abstract_contains_deep', 'abstract_contains_embedding']]
