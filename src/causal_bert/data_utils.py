@@ -7,16 +7,17 @@ import pandas as pd
 import tensorflow as tf
 import time
 
-from PeerRead.dataset.dataset import make_unprocessed_PeerRead_dataset
+from tf_official.nlp.bert import tokenization
 
 MININT = -2147483648
 
 
-def create_masked_lm_predictions(token_ids: tf.Tensor,
-                                 masked_lm_prob: float,
-                                 max_predictions_per_seq: int,
-                                 vocab: dict,
-                                 seed: int):
+# Masking
+def _create_masked_lm_predictions(token_ids: tf.Tensor,
+                                  masked_lm_prob: float,
+                                  max_predictions_per_seq: int,
+                                  vocab: dict,
+                                  seed: int):
     """
     Randomly masks tokens to produce (one of) the BERT unsupervised learning objectives
 
@@ -70,6 +71,57 @@ def create_masked_lm_predictions(token_ids: tf.Tensor,
     return output_ids, masked_lm_positions, masked_lm_ids, masked_lm_weights
 
 
+def _make_input_id_masker(tokenizer, seed,
+                          masked_lm_prob=0.15,
+                          max_predictions_per_seq=20):
+    # (One of) Bert's unsupervised objectives is to mask some fraction of the input words and predict the masked words
+
+    @tf.function
+    def masker(data):
+        token_ids = data['input_word_ids']
+        maybe_masked_input_ids, masked_lm_positions, masked_lm_ids, masked_lm_weights = _create_masked_lm_predictions(
+            token_ids,
+            # pre-training defaults from Bert docs
+            masked_lm_prob=masked_lm_prob,
+            max_predictions_per_seq=max_predictions_per_seq,
+            vocab=tokenizer.vocab,
+            seed=seed)
+        return {
+            **data,
+            'input_ids': maybe_masked_input_ids,
+            'masked_lm_positions': masked_lm_positions,
+            'masked_lm_ids': masked_lm_ids,
+            'masked_lm_weights': masked_lm_weights
+        }
+
+    return masker
+
+
+def add_masking(dataset: tf.data.Dataset,
+                tokenizer: tokenization.FullTokenizer,
+                masked_lm_prob=0.15,
+                max_predictions_per_seq=20,
+                seed=0):
+    """
+    Applies Bert style word-piece masking to input dataset, using the provided tokenizer and random seed
+    Args:
+        dataset: dataset, should yield dictionary data that has key 'input_ids'
+        tokenizer: bert tokenizer used for pre-processing
+        masked_lm_prob: per-token masking probability
+        max_predictions_per_seq: maximum allowed number of masks
+        seed: random seed
+
+    Returns: tensorflow dataset
+    """
+    masker = _make_input_id_masker(tokenizer, seed,
+                                   masked_lm_prob=masked_lm_prob, max_predictions_per_seq=max_predictions_per_seq)
+    mask_dataset = dataset.map(
+        masker, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    return mask_dataset
+
+
+# basic data loading
 def _decode_record(record, name_to_features):
     """Decodes a record to a TensorFlow example."""
     example = tf.io.parse_single_example(record, name_to_features)
@@ -83,29 +135,6 @@ def _decode_record(record, name_to_features):
         example[name] = t
 
     return example
-
-
-def _make_input_id_masker(tokenizer, seed):
-    # (One of) Bert's unsupervised objectives is to mask some fraction of the input words and predict the masked words
-
-    def masker(data):
-        token_ids = data['input_ids']
-        maybe_masked_input_ids, masked_lm_positions, masked_lm_ids, masked_lm_weights = create_masked_lm_predictions(
-            token_ids,
-            # pre-training defaults from Bert docs
-            masked_lm_prob=0.15,
-            max_predictions_per_seq=20,
-            vocab=tokenizer.vocab,
-            seed=seed)
-        return {
-            **data,
-            'input_ids': maybe_masked_input_ids,
-            'masked_lm_positions': masked_lm_positions,
-            'masked_lm_ids': masked_lm_ids,
-            'masked_lm_weights': masked_lm_weights
-        }
-
-    return masker
 
 
 def load_basic_bert_data(file_paths,
@@ -145,11 +174,13 @@ def load_basic_bert_data(file_paths,
     dataset = dataset.map(
         decode_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
-    def _fake_input_ids(data):
-        data['input_type_ids']: tf.zeros_like(data['token_mask'])  # segment ids
+    def _bert_conventions(data):
+        data['input_word_ids'] = data.pop('token_ids')
+        data['input_mask'] = data.pop('token_mask')
+        data['input_type_ids'] = tf.zeros_like(data['input_mask'])  # fake segment ids
         return data
 
-    dataset = dataset.map(_fake_input_ids, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dataset = dataset.map(_bert_conventions, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     return dataset
 
@@ -238,7 +269,8 @@ def _make_labeling_v2(label_df: pd.DataFrame, do_factorize=False):
     @tf.function
     def labeling(data: dict, labels=None):
         id = data['id']
-        idx = tf.searchsorted(ids, id, out_type=tf.int32)
+        idx = tf.searchsorted(ids, tf.transpose(id), out_type=tf.int32)  # id should be [batch_size, 1], so must transp
+        idx = tf.transpose(idx)  # to get to shape [batch_size, 1]
 
         in_label_df = tf.equal(id, tf.gather(ids, idx))
 
@@ -247,15 +279,15 @@ def _make_labeling_v2(label_df: pd.DataFrame, do_factorize=False):
 
         if num_ints > 0:
             samp_int_vals = tf.gather(int_values, idx)
-            samp_int_list = tf.split(samp_int_vals, num_ints, axis=1)
+            samp_int_list = tf.unstack(samp_int_vals, axis=-1)
             for n, v in zip(int_names, samp_int_list):
-                labels[n] = v[:, 0]
+                labels[n] = v
 
         if num_floats > 0:
             samp_float_vals = tf.gather(float_values, idx)
-            samp_float_list = tf.split(samp_float_vals, num_floats, axis=1)
+            samp_float_list = tf.unstack(samp_float_vals, axis=-1)
             for n, v in zip(float_names, samp_float_list):
-                labels[n] = v[:, 0]
+                labels[n] = v
 
         labels['in_label_df'] = in_label_df
 
@@ -278,6 +310,9 @@ def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame,
         dataset: tf.data.Dataset. Must yield a dictionary which has key 'index'
         label_df: pd.DataFrame. The index should contain (a subset of) the values of 'index' in the tensorflow dataset.
             Each column should either be categorical or numerical. NaNs are allowed
+        filter_labeled: bool. If True, then any batch that has 1 or more examples missing labels is filtered
+            WARNING: this may result in very slow performance for large batches if missing labels are common.
+            consider applying batching after this function
 
     Returns: tf.data.Dataset that yields (original, labels_from_pandas)
 
@@ -287,39 +322,36 @@ def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame,
         labeling, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     if filter_labeled:
-        lab_dataset = lab_dataset.filter(lambda d, l: tf.squeeze(l['in_label_df']))
+        lab_dataset = lab_dataset.filter(lambda d, l: tf.reduce_all(l['in_label_df']))
 
     return lab_dataset
 
 
 def main():
-    label_df = pd.read_feather('dat/PeerRead/proc/arxiv-all-labels-only.feather')
-    mry = label_df.most_recent_reference_year
-    mry[label_df.most_recent_reference_year < 0] = np.NaN
-    label_df.most_recent_reference_year = pd.array(mry, dtype='int64')
+    # label_df = pd.read_feather('dat/PeerRead/proc/arxiv-all-labels-only.feather')
 
     dataset = load_basic_bert_data('dat/PeerRead/proc/arxiv-all.tf_record', 250,
                                    is_training=False)
-    # label_df = label_df[['id','abstract_contains_deep', 'abstract_contains_embedding']]
 
-    data = dataset_labels_from_pandas(dataset, label_df)
-    data = data.repeat()
-    data = data.batch(32)
-    data.shuffle(100)
+    tokenizer = tokenization.FullTokenizer(
+        vocab_file='pre-trained/uncased_L-12_H-768_A-12/vocab.txt', do_lower_case=True)
+    dataset = add_masking(dataset, tokenizer=tokenizer)
+
+    label_df = pd.read_feather('dat/PeerRead/proc/arxiv-all-multi-treat-and-missing-outcomes.feather')
+    dataset = dataset_labels_from_pandas(dataset, label_df)
+
+    dataset.batch(32)
+    dataset.shuffle(100)
 
     t0 = time.time()
-    dit = data.take(1000)
+    dit = dataset.take(1000)
     for samp in dit:
         s = samp
     t1 = time.time()
     print(t1 - t0)
+
     # data = make_unprocessed_PeerRead_dataset('../dat/PeerRead/proc/arxiv-all.tf_record', 250)
-    #
     # label_df = dataset_to_pandas_df(data)
-    #
-    # # note: feather can't handle nested types
-    # # label_df.to_feather('../dat/PeerRead/proc/arxiv-all.feather')
-    #
     # label_df = label_df.drop(columns=['token_ids', 'token_mask', 'index'])
     # label_df.to_feather('../dat/PeerRead/proc/arxiv-all-labels-only.feather')
 

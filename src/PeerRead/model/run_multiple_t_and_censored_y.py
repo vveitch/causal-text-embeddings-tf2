@@ -27,12 +27,11 @@ import tensorflow as tf
 
 # pylint: disable=g-import-not-at-top,redefined-outer-name,reimported
 from tf_official.nlp import bert_modeling as modeling, optimization
-# from nlp import bert_models
 from tf_official.nlp.bert import tokenization, common_flags, model_saving_utils
 from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
 
-from PeerRead.dataset.dataset import make_dataset_fn_from_file, make_real_labeler
+from causal_bert.data_utils import load_basic_bert_data, dataset_labels_from_pandas
 
 common_flags.define_common_bert_flags()
 
@@ -56,7 +55,7 @@ flags.DEFINE_string(
     'Path to file that contains meta data about input '
     'to be used for training and evaluation.')
 flags.DEFINE_integer(
-    'max_seq_length', 250,
+    'max_seq_length', 128,
     'The maximum total input sequence length after WordPiece tokenization. '
     'Sequences longer than this will be truncated, and sequences shorter '
     'than this will be padded.')
@@ -84,76 +83,108 @@ flags.DEFINE_integer("num_splits", 10,
 flags.DEFINE_string("dev_splits", '9', "indices of development splits")
 flags.DEFINE_string("test_splits", '9', "indices of test splits")
 
-# Flags specifically related to PeerRead experiment
-
-flags.DEFINE_string(
-    "treatment", "theorem_referenced",
-    "Covariate used as treatment."
-)
-
-flags.DEFINE_string("simulated", 'real', "whether to use real data ('real'), attribute based ('attribute'), "
-                                         "or propensity score-based ('propensity') simulation"),
-flags.DEFINE_float("beta0", 0.0, "param passed to simulated labeler, treatment strength")
-flags.DEFINE_float("beta1", 0.0, "param passed to simulated labeler, confounding strength")
-flags.DEFINE_float("gamma", 0.0, "param passed to simulated labeler, noise level")
-flags.DEFINE_float("exogenous_confounding", 0.0, "amount of exogenous confounding in propensity based simulation")
-flags.DEFINE_string("base_propensities_path", '', "path to .tsv file containing a 'propensity score' for each unit,"
-                                                  "used for propensity score-based simulation")
-
-flags.DEFINE_string("simulation_mode", 'simple', "simple, multiplicative, or interaction")
-
 flags.DEFINE_string("prediction_file", "../output/predictions.tsv", "path where predictions (tsv) will be written")
+
+# more complicated data
+flags.DEFINE_integer("num_treatments", 221, "number of treatment levels")
+flags.DEFINE_bool("missing_outcomes", True, "Whether there are missing outcomes")
 
 FLAGS = flags.FLAGS
 
 
-def make_dataset(is_training: bool, do_masking=False):
-    labeler = make_real_labeler(FLAGS.treatment, 'accepted')
+def make_hydra_keras_format(num_treatments, missing_outcomes=False):
+    if not missing_outcomes:
+        @tf.function
+        def _hydra_keras_format(features, labels):
+            y = labels['outcome']
+            t = tf.cast(labels['treatment'], tf.float32)
+            labels = {'g': labels['treatment']}
+            sample_weights = {}
+            for treat in range(num_treatments):
+                labels[f"q{treat}"] = y
+                treat_active = tf.equal(t, treat)
+                sample_weights[f"q{treat}"] = tf.cast(treat_active, tf.float32)
+            return features, labels, sample_weights
 
-    tokenizer = tokenization.FullTokenizer(
-        vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
+    elif missing_outcomes:
+        @tf.function
+        def _hydra_keras_format(features, labels):
+            # construct the label dictionary
+            y = labels['outcome']
+            y_is_obs_label = tf.cast(labels['outcome_observed'], tf.int32)
+            labels_out = {'g0': labels['treatment'], 'g1': labels['treatment'], 'y_is_obs': y_is_obs_label}
+            for treat in range(num_treatments):
+                labels_out[f"q{treat}"] = y
 
-    dev_splits = [int(s) for s in str.split(FLAGS.dev_splits)]
-    test_splits = [int(s) for s in str.split(FLAGS.test_splits)]
+            # construct the sample weighting dictionary
+            t = labels['treatment']
+            y_is_obs = tf.cast(labels['outcome_observed'], tf.float32)
 
-    train_input_fn = make_dataset_fn_from_file(
-        input_files_or_glob=FLAGS.input_files,
-        seq_length=FLAGS.max_seq_length,
-        num_splits=FLAGS.num_splits,
-        dev_splits=dev_splits,
-        test_splits=test_splits,
-        tokenizer=tokenizer,
-        do_masking=do_masking,
-        is_training=is_training,
-        shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
-        seed=FLAGS.seed,
-        labeler=labeler)
+            sample_weights = {'g0': 1 - y_is_obs, 'g1': y_is_obs}  # these heads correspond to P(T| missing = ~, x)
+            # mask a treatment head if (1) that treatment wasn't assigned, or (2) the outcome is missing
+            for treat in range(num_treatments):
+                treat_active = tf.equal(t, treat)
+                treat_active = tf.logical_and(treat_active, labels['outcome_observed'])
+                sample_weights[f"q{treat}"] = tf.cast(treat_active, tf.float32)
+            return features, labels_out, sample_weights
 
-    batch_size = FLAGS.train_batch_size if is_training else FLAGS.eval_batch_size
-
-    return train_input_fn(params={'batch_size': batch_size})
+    return _hydra_keras_format
 
 
-def make_dragonnet_metrics():
+def make_dataset(is_training: bool, num_treatments: int, missing_outcomes=False, do_masking=False,
+                 input_pipeline_context=None):
+    # todo: fix hardcording
+    tf_record_files = '../out/preproc_tf_records/*'
+    df_file = '../out/outcomes_and_treatments/ref_and_sat_2018_2019.pd'
+
+    if do_masking:
+        tokenizer = tokenization.FullTokenizer(
+            vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
+    else:
+        tokenizer = None
+
+    labeled_data = make_df_from_tfrecords_and_pd_labels(tf_record_files, df_file,
+                                                        seq_length=128,
+                                                        is_training=is_training,
+                                                        do_masking=do_masking,
+                                                        tokenizer=tokenizer,
+                                                        seed=FLAGS.seed,
+                                                        input_pipeline_context=input_pipeline_context,
+                                                        after_2018=True)
+
+    if is_training:
+        hydra_keras_format = make_hydra_keras_format(num_treatments, missing_outcomes=missing_outcomes)
+        labeled_data = labeled_data.map(hydra_keras_format)
+        labeled_data = labeled_data.batch(FLAGS.train_batch_size, drop_remainder=True)
+        labeled_data = labeled_data.prefetch(1024)
+
+        return labeled_data
+    else:
+        return labeled_data.batch(FLAGS.eval_batch_size)
+
+
+def make_hydra_metrics(num_treatments, missing_outcomes=False):
     METRICS = [
-        tf.keras.metrics.TruePositives,
-        tf.keras.metrics.FalsePositives,
-        tf.keras.metrics.TrueNegatives,
-        tf.keras.metrics.FalseNegatives,
         tf.keras.metrics.BinaryAccuracy,
         tf.keras.metrics.Precision,
         tf.keras.metrics.Recall,
         tf.keras.metrics.AUC
     ]
 
-    NAMES = ['true_positive', 'false_positive', 'true_negative', 'false_negative',
-             'binary_accuracy', 'precision', 'recall', 'auc']
+    NAMES = ['binary_accuracy', 'precision', 'recall', 'auc']
 
-    g_metrics = [m(name='g/'+n) for m, n in zip(METRICS, NAMES)]
-    q0_metrics = [m(name='q0/'+n) for m, n in zip(METRICS, NAMES)]
-    q1_metrics = [m(name='q1/'+n) for m, n in zip(METRICS, NAMES)]
+    if missing_outcomes:
+        metrics = {'g0': [tf.keras.metrics.SparseCategoricalAccuracy()],
+                   'g1': [tf.keras.metrics.SparseCategoricalAccuracy()],
+                   'y_is_obs': [tf.keras.metrics.BinaryAccuracy()]}
+    else:
+        metrics = {'g': [tf.keras.metrics.SparseCategoricalAccuracy()]}
 
-    return {'g': g_metrics, 'q0': q0_metrics, 'q1': q1_metrics}
+    for treat in range(num_treatments):
+        q_metric = [m(name=n) for m, n in zip(METRICS, NAMES)]
+        metrics[f"q{treat}"] = q_metric
+
+    return metrics
 
 
 def main(_):
@@ -170,8 +201,8 @@ def main(_):
     #
     bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
     epochs = FLAGS.num_train_epochs
-    train_data_size = 11778
-    steps_per_epoch = int(train_data_size / FLAGS.train_batch_size)  # 368
+    train_data_size = 50000  # todo: fix hardcording
+    steps_per_epoch = int(train_data_size / FLAGS.train_batch_size)
     warmup_steps = int(epochs * train_data_size * 0.1 / FLAGS.train_batch_size)
     initial_lr = FLAGS.learning_rate
 
@@ -189,55 +220,63 @@ def main(_):
     # Modeling and training
     #
 
+    num_treatments = FLAGS.num_treatments
+    missing_outcomes = FLAGS.missing_outcomes
+
     # the model
-    def _get_dragon_model(do_masking):
+    def _get_hydra_model(do_masking):
         dragon_model, core_model = (
-            bert_models.dragon_model(
+            bert_models.hydra_model(
                 bert_config,
-                max_seq_length=250,
+                max_seq_length=128,
                 binary_outcome=True,
+                num_treatments=num_treatments,
+                missing_outcomes=missing_outcomes,
                 use_unsup=do_masking,
                 max_predictions_per_seq=20,
                 unsup_scale=1.))
+
         dragon_model.optimizer = optimization.create_optimizer(
             FLAGS.train_batch_size * initial_lr, steps_per_epoch * epochs, warmup_steps)
         return dragon_model, core_model
 
-    # we'll need a hack to let keras loss depend on multiple labels. Which is just plain stupid design.
-    @tf.function
-    def _keras_format(features, labels):
-        # features, labels = sample
-        y = labels['outcome']
-        t = tf.cast(labels['treatment'], tf.float32)
-        labels = {'g': labels['treatment'], 'q0': y, 'q1': y}
-        sample_weights = {'q0': 1-t, 'q1': t}
-        return features, labels, sample_weights
-
     # training. strategy.scope context allows use of multiple devices
     with strategy.scope():
-        input_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
-        keras_train_data = input_data.map(_keras_format)
-
-        dragon_model, core_model = _get_dragon_model(FLAGS.do_masking)
-        optimizer = dragon_model.optimizer
+        train_data = make_dataset(is_training=True,
+                                  num_treatments=num_treatments, missing_outcomes=missing_outcomes,
+                                  do_masking=FLAGS.do_masking)
+        hydra_model, core_model = _get_hydra_model(FLAGS.do_masking)
+        optimizer = hydra_model.optimizer
 
         if FLAGS.init_checkpoint:
             checkpoint = tf.train.Checkpoint(model=core_model)
             checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
-        dragon_model.compile(optimizer=optimizer,
-                             loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy', 'q1': 'binary_crossentropy'},
-                             loss_weights={'g': 0.8, 'q0': 0.1, 'q1': 0.1},
-                             weighted_metrics=make_dragonnet_metrics())
+        if not missing_outcomes:
+            losses = {'g': 'sparse_categorical_crossentropy'}
+            loss_weights = {'g': 1.0}
+        else:
+            losses = {'g0': 'sparse_categorical_crossentropy', 'g1': 'sparse_categorical_crossentropy',
+                      'y_is_obs': 'binary_crossentropy'}
+            loss_weights = {'g0': 1.0, 'g1': 1.0, 'y_is_obs': 1.0}
 
-        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=640)
+        for treat in range(num_treatments):
+            losses[f"q{treat}"] = 'binary_crossentropy'
+            loss_weights[f"q{treat}"] = 0.1
+
+        hydra_model.compile(optimizer=optimizer,
+                            loss=losses,
+                            loss_weights=loss_weights,
+                            weighted_metrics=make_hydra_metrics(num_treatments, missing_outcomes))
+
+        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
         checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir)
 
         callbacks = [summary_callback, checkpoint_callback]
 
-        dragon_model.fit(
-            x=keras_train_data,
+        hydra_model.fit(
+            x=train_data,
             # validation_data=evaluation_dataset,
             steps_per_epoch=steps_per_epoch,
             epochs=epochs,
@@ -247,19 +286,21 @@ def main(_):
     # save the model
     if FLAGS.model_export_path:
         model_saving_utils.export_bert_model(
-            FLAGS.model_export_path, model=dragon_model)
+            FLAGS.model_export_path, model=hydra_model)
 
     # make predictions and write to file
     # NOTE: theory suggests we should make predictions on heldout data ("cross fitting" or "sample splitting")
     # but our experiments showed best results by just reusing the data
     # You can accomodate sample splitting by using the splitting arguments for the dataset creation
 
-    eval_data = make_dataset(is_training=False, do_masking=False)
-    dragon_model, core_model = _get_dragon_model(do_masking=False)
+    eval_data = make_dataset(is_training=False, do_masking=False,
+                             num_treatments=num_treatments, missing_outcomes=missing_outcomes)
+    hydra_model, core_model = _get_hydra_model(do_masking=False)
     # TODO: check this
-    checkpoint = tf.train.Checkpoint(model=dragon_model)
+    checkpoint = tf.train.Checkpoint(model=hydra_model)
     checkpoint.restore(FLAGS.model_export_path).assert_existing_objects_matched()
 
+    # TODO: needs rewrite
     with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
         attribute_names = ['in_test',
                            'treatment_probability',
@@ -271,7 +312,7 @@ def main(_):
         writer.write(header)
 
         for f, l in eval_data:
-            g_pred, q0_pred, q1_pred = dragon_model.predict(f)
+            g_pred, q0_pred, q1_pred = hydra_model.predict(f)
             attributes = [l['in_test'].numpy(),
                           g_pred, q1_pred, q0_pred,
                           l['outcome'].numpy(), l['treatment'].numpy(), l['index'].numpy()]
