@@ -66,9 +66,6 @@ flags.DEFINE_integer('max_predictions_per_seq', 20,
 
 flags.DEFINE_integer('train_batch_size', 32, 'Batch size for training.')
 flags.DEFINE_integer('eval_batch_size', 32, 'Batch size for evaluation.')
-flags.DEFINE_string(
-    'hub_module_url', None, 'TF-Hub path/url to Bert module. '
-                            'If specified, init_checkpoint flag should not be used.')
 
 flags.DEFINE_string("vocab_file", None,
                     "The vocabulary file that the BERT model was trained on.")
@@ -85,7 +82,7 @@ flags.DEFINE_integer("num_splits", 10,
 flags.DEFINE_string("dev_splits", '9', "indices of development splits")
 flags.DEFINE_string("test_splits", '9', "indices of test splits")
 
-flags.DEFINE_string("prediction_file", "output/predictions.tsv", "path where predictions (tsv) will be written")
+flags.DEFINE_string("prediction_file", "out/predictions.tsv", "path where predictions (tsv) will be written")
 
 # more complicated data
 flags.DEFINE_integer("num_treatments", 11, "number of treatment levels")
@@ -139,34 +136,36 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
     dataset = load_basic_bert_data(tf_record_files, 250, is_training=is_training,
                                    input_pipeline_context=input_pipeline_context)
 
+    if do_masking:
+        tokenizer = tokenization.FullTokenizer(
+            vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
+        dataset = add_masking(dataset, tokenizer=tokenizer)
+
+    label_df = pd.read_feather(df_file)
+    dataset = dataset_labels_from_pandas(dataset, label_df)
+
+    # todo: hardcoded for demo, but not the smartest way to do this
+    def _standardize_label_naming(f, l):
+        l['outcome'] = l.pop('accepted')
+        l['treatment'] = l.pop('year')
+        if missing_outcomes:
+            l['outcome_observed'] = tf.not_equal(l['outcome'], -1)
+        return f, l
+
+    dataset = dataset.map(_standardize_label_naming)
+
     if is_training:
-        if do_masking:
-            tokenizer = tokenization.FullTokenizer(
-                vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
-            dataset = add_masking(dataset, tokenizer=tokenizer)
-
-        label_df = pd.read_feather(df_file)
-        dataset = dataset_labels_from_pandas(dataset, label_df)
-
-        # todo: hardcoded for demo, but not the smartest way to do this
-        def _standardize_label_naming(f, l):
-            l['outcome'] = l.pop('accepted')
-            l['treatment'] = l.pop('year')
-            if missing_outcomes:
-                l['outcome_observed'] = tf.not_equal(l['outcome'], -1)
-            return f, l
-
-        dataset = dataset.map(_standardize_label_naming)
-
         # batching needs to happen before sample weights are created
         dataset = dataset.shuffle(1000)
         dataset = dataset.batch(FLAGS.train_batch_size, drop_remainder=True)
         dataset = dataset.prefetch(1024)
 
+        # create sample weights and label outputs in the manner expected keras
         hydra_keras_format = make_hydra_keras_format(num_treatments, missing_outcomes=missing_outcomes)
         dataset = dataset.map(hydra_keras_format)
 
         return dataset
+
     else:
         return dataset.batch(FLAGS.eval_batch_size)
 
@@ -316,11 +315,11 @@ def main(_):
     with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
         names = hydra_model.output_names
         if missing_outcomes:
-            g0_names = ['g0_'+str(t) for t in range(num_treatments)]
-            g1_names = ['g1_'+str(t) for t in range(num_treatments)]
+            g0_names = ['g0_' + str(t) for t in range(num_treatments)]
+            g1_names = ['g1_' + str(t) for t in range(num_treatments)]
             names = g0_names + g1_names + names[2:]
         else:
-            g_names = ['g'+str(t) for t in range(num_treatments)]
+            g_names = ['g' + str(t) for t in range(num_treatments)]
             names = g_names + names[1:]
 
         names = ['id', 'outcome', 'treatment'] + names
