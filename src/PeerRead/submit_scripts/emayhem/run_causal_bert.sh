@@ -24,7 +24,5 @@ python -m PeerRead.model.run_causal_bert \
 --model_dir=$OUTPUT_DIR \
 --num_train_epochs=3 \
 --seed=0 \
---prediction_file=$PREDICTION_FILE \
---model_export_path = $OUTPUT_DIR/export/
-
+--prediction_file=$PREDICTION_FILE
 # --strategy_type=mirror \
