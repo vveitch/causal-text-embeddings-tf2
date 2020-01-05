@@ -195,7 +195,7 @@ def dragon_model(bert_config,
             input_type_ids,
             config=bert_config)
 
-        unsup_loss = 0.
+        unsup_loss = lambda: 0  # tf.convert_to_tensor(0.) doesn't work...
 
     pooled_output = bert_model.outputs[0]
 
@@ -273,7 +273,7 @@ def hydra_model(bert_config,
             input_type_ids,
             config=bert_config)
 
-        unsup_loss = 0.
+        unsup_loss = lambda: 0  # tf.convert_to_tensor(0.) doesn't work...
 
     pooled_output = bert_model.outputs[0]
 
