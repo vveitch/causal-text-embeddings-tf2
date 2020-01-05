@@ -170,7 +170,7 @@ def main(_):
     #
     bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
     epochs = FLAGS.num_train_epochs
-    train_data_size = 11778
+    train_data_size = 128
     steps_per_epoch = int(train_data_size / FLAGS.train_batch_size)  # 368
     warmup_steps = int(epochs * train_data_size * 0.1 / FLAGS.train_batch_size)
     initial_lr = FLAGS.learning_rate
@@ -230,7 +230,7 @@ def main(_):
                              loss_weights={'g': 0.8, 'q0': 0.1, 'q1': 0.1},
                              weighted_metrics=make_dragonnet_metrics())
 
-        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=640)
+        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=4)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
         checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir)
 
