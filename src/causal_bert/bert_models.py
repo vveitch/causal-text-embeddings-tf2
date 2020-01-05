@@ -54,7 +54,7 @@ def get_dragon_heads(binary_outcome: bool):
     return dragon_heads
 
 
-def get_hydra_heads(binary_outcome: bool, num_treatments: int):
+def get_hydra_heads(binary_outcome: bool, num_treatments: int, missing_outcomes: bool):
     """
     A variant of dragonnet allowing possibly many treatment levels
 
@@ -63,8 +63,6 @@ def get_hydra_heads(binary_outcome: bool, num_treatments: int):
     """
 
     def hydra_heads(z: tf.Tensor):
-        g = tf.keras.layers.Dense(num_treatments, activation='sigmoid', name='g')(z)
-
         if binary_outcome:
             activation = 'sigmoid'
         else:
@@ -77,7 +75,14 @@ def get_hydra_heads(binary_outcome: bool, num_treatments: int):
         for treat in range(num_treatments):
             q.append(tf.keras.layers.Dense(1, activation=activation, name=f"q{treat}")(qz))
 
-        return g, q
+        if not missing_outcomes:
+            g = tf.keras.layers.Dense(num_treatments, activation='sigmoid', name='g')(z)
+            return g, q
+        else:
+            g0 = tf.keras.layers.Dense(num_treatments, activation='sigmoid', name='g0')(z)
+            g1 = tf.keras.layers.Dense(num_treatments, activation='sigmoid', name='g1')(z)
+            m = tf.keras.layers.Dense(1, activation='sigmoid', name='y_is_obs')(z)
+            return g0, g1, m, q
 
     return hydra_heads
 
@@ -213,6 +218,7 @@ def hydra_model(bert_config,
                 max_seq_length: int,
                 binary_outcome: bool,
                 num_treatments: int,
+                missing_outcomes: bool,
                 use_unsup=False,
                 max_predictions_per_seq=20,
                 unsup_scale=1.):
@@ -222,7 +228,9 @@ def hydra_model(bert_config,
       bert_config: BertConfig, the config defines the core BERT model.
       max_seq_length: integer, the maximum input sequence length.
       binary_outcome: bool, whether outcome is binary
-      num_treatments: number of treatment categories
+      num_treatments: int, number of treatment categories
+      missing_outcomes: bool, whether missing outcomes are possible. In this case, we'll output prediction heads for
+        P(T | missing = True, X), P(T | missing = False, X) and P(Missing | X) ('g0', 'g1', and 'missing')
       use_unsup: bool, whether to predict censored input words (requires same input features as bert pre-training)
       max_predictions_per_seq: integer, maximum number of input words that are censored
       unsup_scale: factor by which to scale unsupervised loss
@@ -269,11 +277,8 @@ def hydra_model(bert_config,
 
     pooled_output = bert_model.outputs[0]
 
-    head_model = get_hydra_heads(binary_outcome, num_treatments)
-    outputs = head_model(pooled_output)
-
-    # output = tf.keras.layers.Dropout(rate=bert_config.hidden_dropout_prob)(
-    #     pooled_output)
+    head_model = get_hydra_heads(binary_outcome, num_treatments, missing_outcomes)
+    outputs = head_model(pooled_output)  # note: number of outputs changes depending on missingness or not
 
     hydra_model = tf.keras.Model(
         inputs=inputs,

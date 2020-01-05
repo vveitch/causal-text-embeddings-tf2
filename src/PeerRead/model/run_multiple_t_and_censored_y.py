@@ -31,7 +31,7 @@ from tf_official.nlp.bert import tokenization, common_flags, model_saving_utils
 from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
 
-from causal_bert.data_utils import load_basic_bert_data, dataset_labels_from_pandas
+from causal_bert.data_utils import load_basic_bert_data, dataset_labels_from_pandas, add_masking
 
 common_flags.define_common_bert_flags()
 
@@ -48,6 +48,8 @@ flags.DEFINE_bool(
 
 flags.DEFINE_string('input_files', None,
                     'File path to retrieve training data for pre-training.')
+flags.DEFINE_string('label_df_file', 'dat/PeerRead/proc/arxiv-all-multi-treat-and-missing-outcomes.feather',
+                    'File path for pandas dataframe containing labels')
 
 # Model training specific flags.
 flags.DEFINE_string(
@@ -131,36 +133,41 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
     return _hydra_keras_format
 
 
-def make_dataset(is_training: bool, num_treatments: int, missing_outcomes=False, do_masking=False,
+def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, missing_outcomes=False, do_masking=False,
                  input_pipeline_context=None):
-    # todo: fix hardcording
-    tf_record_files = '../out/preproc_tf_records/*'
-    df_file = '../out/outcomes_and_treatments/ref_and_sat_2018_2019.pd'
 
-    if do_masking:
-        tokenizer = tokenization.FullTokenizer(
-            vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
-    else:
-        tokenizer = None
-
-    labeled_data = make_df_from_tfrecords_and_pd_labels(tf_record_files, df_file,
-                                                        seq_length=128,
-                                                        is_training=is_training,
-                                                        do_masking=do_masking,
-                                                        tokenizer=tokenizer,
-                                                        seed=FLAGS.seed,
-                                                        input_pipeline_context=input_pipeline_context,
-                                                        after_2018=True)
+    df_file = FLAGS.label_df_file
+    dataset = load_basic_bert_data(tf_record_files, 250, is_training=is_training,
+                                   input_pipeline_context=input_pipeline_context)
 
     if is_training:
-        hydra_keras_format = make_hydra_keras_format(num_treatments, missing_outcomes=missing_outcomes)
-        labeled_data = labeled_data.map(hydra_keras_format)
-        labeled_data = labeled_data.batch(FLAGS.train_batch_size, drop_remainder=True)
-        labeled_data = labeled_data.prefetch(1024)
+        if do_masking:
+            tokenizer = tokenization.FullTokenizer(
+                vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
+            dataset = add_masking(dataset, tokenizer=tokenizer)
 
-        return labeled_data
+        label_df = pd.read_feather(df_file)
+        dataset = dataset_labels_from_pandas(dataset, label_df)
+
+        # todo: hardcoded for demo, but not the smartest way to do this
+        def _standardize_label_naming(f,l):
+            l['outcome'] = l.pop('accepted')
+            l['treatment'] = l.pop('year')
+            if missing_outcomes:
+                l['outcome_observed'] = tf.not_equal(l['outcome'], -1)
+            return f, l
+        dataset = dataset.map(_standardize_label_naming)
+
+        hydra_keras_format = make_hydra_keras_format(num_treatments, missing_outcomes=missing_outcomes)
+        dataset = dataset.map(hydra_keras_format)
+
+        dataset = dataset.shuffle(1000)
+        dataset = dataset.batch(FLAGS.train_batch_size, drop_remainder=True)
+        dataset = dataset.prefetch(1024)
+
+        return dataset
     else:
-        return labeled_data.batch(FLAGS.eval_batch_size)
+        return dataset.batch(FLAGS.eval_batch_size)
 
 
 def make_hydra_metrics(num_treatments, missing_outcomes=False):
