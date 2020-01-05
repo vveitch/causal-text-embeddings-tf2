@@ -24,5 +24,6 @@ python -m PeerRead.model.run_multiple_t_and_missing_y \
 --model_dir=$OUTPUT_DIR \
 --num_train_epochs=3 \
 --seed=0 \
---prediction_file=$PREDICTION_FILE
+--prediction_file=$PREDICTION_FILE \
+--label_df_file ../dat/PeerRead/proc/arxiv-all-multi-treat-and-missing-outcomes.feather
 # --strategy_type=mirror \
