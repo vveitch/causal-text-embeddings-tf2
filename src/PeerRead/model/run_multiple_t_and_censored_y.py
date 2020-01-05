@@ -85,7 +85,7 @@ flags.DEFINE_integer("num_splits", 10,
 flags.DEFINE_string("dev_splits", '9', "indices of development splits")
 flags.DEFINE_string("test_splits", '9', "indices of test splits")
 
-flags.DEFINE_string("prediction_file", "../output/predictions.tsv", "path where predictions (tsv) will be written")
+flags.DEFINE_string("prediction_file", "output/predictions.tsv", "path where predictions (tsv) will be written")
 
 # more complicated data
 flags.DEFINE_integer("num_treatments", 221, "number of treatment levels")
@@ -135,7 +135,6 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
 
 def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, missing_outcomes=False, do_masking=False,
                  input_pipeline_context=None):
-
     df_file = FLAGS.label_df_file
     dataset = load_basic_bert_data(tf_record_files, 250, is_training=is_training,
                                    input_pipeline_context=input_pipeline_context)
@@ -150,12 +149,13 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
         dataset = dataset_labels_from_pandas(dataset, label_df)
 
         # todo: hardcoded for demo, but not the smartest way to do this
-        def _standardize_label_naming(f,l):
+        def _standardize_label_naming(f, l):
             l['outcome'] = l.pop('accepted')
             l['treatment'] = l.pop('year')
             if missing_outcomes:
                 l['outcome_observed'] = tf.not_equal(l['outcome'], -1)
             return f, l
+
         dataset = dataset.map(_standardize_label_naming)
 
         hydra_keras_format = make_hydra_keras_format(num_treatments, missing_outcomes=missing_outcomes)
@@ -249,7 +249,8 @@ def main(_):
 
     # training. strategy.scope context allows use of multiple devices
     with strategy.scope():
-        train_data = make_dataset(is_training=True,
+        train_data = make_dataset(tf_record_files=FLAGS.input_files,
+                                  is_training=True,
                                   num_treatments=num_treatments, missing_outcomes=missing_outcomes,
                                   do_masking=FLAGS.do_masking)
         hydra_model, core_model = _get_hydra_model(FLAGS.do_masking)
@@ -300,31 +301,24 @@ def main(_):
     # but our experiments showed best results by just reusing the data
     # You can accomodate sample splitting by using the splitting arguments for the dataset creation
 
-    eval_data = make_dataset(is_training=False, do_masking=False,
+    eval_data = make_dataset(FLAGS.input_files, is_training=False, do_masking=False,
                              num_treatments=num_treatments, missing_outcomes=missing_outcomes)
     hydra_model, core_model = _get_hydra_model(do_masking=False)
     # TODO: check this
     checkpoint = tf.train.Checkpoint(model=hydra_model)
     checkpoint.restore(FLAGS.model_export_path).assert_existing_objects_matched()
 
-    # TODO: needs rewrite
     with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
-        attribute_names = ['in_test',
-                           'treatment_probability',
-                           'expected_outcome_st_treatment', 'expected_outcome_st_no_treatment',
-                           'outcome', 'treatment',
-                           'index']
-        header = "\t".join(
-            attribute_name for attribute_name in attribute_names) + "\n"
-        writer.write(header)
-
+        names = hydra_model.output_names
         for f, l in eval_data:
-            g_pred, q0_pred, q1_pred = hydra_model.predict(f)
-            attributes = [l['in_test'].numpy(),
-                          g_pred, q1_pred, q0_pred,
-                          l['outcome'].numpy(), l['treatment'].numpy(), l['index'].numpy()]
-            at_df = pd.DataFrame(attributes).T
-            writer.write(at_df.to_csv(sep="\t", header=False))
+            outputs = hydra_model.predict(f)
+            if missing_outcomes:
+                # in this case, g0 and g1 are vector-valued
+                g0 = outputs[0]
+                g1 = outputs[1]
+
+            at_df = pd.DataFrame(outputs).T
+            writer.write(at_df.to_csv(sep="\t", header=names))
 
 
 if __name__ == '__main__':
