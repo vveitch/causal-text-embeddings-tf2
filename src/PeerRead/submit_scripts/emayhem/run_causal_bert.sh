@@ -21,9 +21,10 @@ python -m PeerRead.model.run_causal_bert \
 --vocab_file=$BERT_BASE_DIR/vocab.txt \
 --init_checkpoint=$INIT_FILE \
 --input_files=$DATA_FILE \
---model_dir=$OUTPUT_DIR/PeerRead \
+--model_dir=$OUTPUT_DIR \
 --num_train_epochs=3 \
 --seed=0 \
---prediction_file=$PREDICTION_FILE
+--prediction_file=$PREDICTION_FILE \
+--model_export_path = $OUTPUT_DIR/export/
 
 # --strategy_type=mirror \
