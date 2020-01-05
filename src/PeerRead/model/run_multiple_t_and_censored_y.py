@@ -126,7 +126,7 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
             # mask a treatment head if (1) that treatment wasn't assigned, or (2) the outcome is missing
             for treat in range(num_treatments):
                 treat_active = tf.equal(t, treat)
-                treat_active = tf.logical_and(treat_active, labels['outcome_observed'])[:,0]
+                treat_active = tf.logical_and(treat_active, labels['outcome_observed'])[:, 0]
                 sample_weights[f"q{treat}"] = tf.cast(treat_active, tf.float32)
             return features, labels_out, sample_weights
 
@@ -292,10 +292,14 @@ def main(_):
             # vailidation_steps=eval_steps,
             callbacks=callbacks)
 
-    # save the model
+    # save a final model checkpoint (so we can restore weights into model w/o training idiosyncracies)
     if FLAGS.model_export_path:
-        model_saving_utils.export_bert_model(
-            FLAGS.model_export_path, model=hydra_model)
+        model_export_path = FLAGS.model_export_path
+    else:
+        model_export_path = os.path.join(FLAGS.model_dir, 'trained/hydra.ckpt')
+
+    checkpoint = tf.train.Checkpoint(model=hydra_model)
+    saved_path = checkpoint.save(model_export_path)
 
     # make predictions and write to file
     # NOTE: theory suggests we should make predictions on heldout data ("cross fitting" or "sample splitting")
@@ -305,9 +309,9 @@ def main(_):
     eval_data = make_dataset(FLAGS.input_files, is_training=False, do_masking=False,
                              num_treatments=num_treatments, missing_outcomes=missing_outcomes)
     hydra_model, core_model = _get_hydra_model(do_masking=False)
-    # TODO: check this
     checkpoint = tf.train.Checkpoint(model=hydra_model)
-    checkpoint.restore(FLAGS.model_export_path).assert_existing_objects_matched()
+    checkpoint.restore(saved_path).assert_existing_objects_matched()
+    hydra_model.compile()
 
     with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
         names = hydra_model.output_names

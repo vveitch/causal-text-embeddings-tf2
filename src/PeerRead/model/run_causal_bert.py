@@ -149,9 +149,9 @@ def make_dragonnet_metrics():
     NAMES = ['true_positive', 'false_positive', 'true_negative', 'false_negative',
              'binary_accuracy', 'precision', 'recall', 'auc']
 
-    g_metrics = [m(name='g/'+n) for m, n in zip(METRICS, NAMES)]
-    q0_metrics = [m(name='q0/'+n) for m, n in zip(METRICS, NAMES)]
-    q1_metrics = [m(name='q1/'+n) for m, n in zip(METRICS, NAMES)]
+    g_metrics = [m(name='g/' + n) for m, n in zip(METRICS, NAMES)]
+    q0_metrics = [m(name='q0/' + n) for m, n in zip(METRICS, NAMES)]
+    q1_metrics = [m(name='q1/' + n) for m, n in zip(METRICS, NAMES)]
 
     return {'g': g_metrics, 'q0': q0_metrics, 'q1': q1_metrics}
 
@@ -203,17 +203,17 @@ def main(_):
             FLAGS.train_batch_size * initial_lr, steps_per_epoch * epochs, warmup_steps)
         return dragon_model, core_model
 
-    # we'll need a hack to let keras loss depend on multiple labels. Which is just plain stupid design.
     @tf.function
     def _keras_format(features, labels):
         # features, labels = sample
         y = labels['outcome']
         t = tf.cast(labels['treatment'], tf.float32)
         labels = {'g': labels['treatment'], 'q0': y, 'q1': y}
-        sample_weights = {'q0': 1-t, 'q1': t}
+        sample_weights = {'q0': 1 - t, 'q1': t}
         return features, labels, sample_weights
 
     # training. strategy.scope context allows use of multiple devices
+    do_training = False
     with strategy.scope():
         input_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
         keras_train_data = input_data.map(_keras_format)
@@ -226,10 +226,10 @@ def main(_):
             checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
         dragon_model.compile(optimizer=optimizer,
-                             loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy', 'q1': 'binary_crossentropy'},
+                             loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy',
+                                   'q1': 'binary_crossentropy'},
                              loss_weights={'g': 0.8, 'q0': 0.1, 'q1': 0.1},
                              weighted_metrics=make_dragonnet_metrics())
-
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=4)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
         checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir, save_weights_only=True)
@@ -244,21 +244,27 @@ def main(_):
             # vailidation_steps=eval_steps,
             callbacks=callbacks)
 
-    # save the model
+    # save a final model checkpoint (so we can restore weights into model w/o training idiosyncracies)
     if FLAGS.model_export_path:
-        model_saving_utils.export_bert_model(
-            FLAGS.model_export_path, model=dragon_model)
+        model_export_path = FLAGS.model_export_path
+    else:
+        model_export_path = os.path.join(FLAGS.model_dir, 'trained/dragon.ckpt')
+
+    checkpoint = tf.train.Checkpoint(model=dragon_model)
+    saved_path = checkpoint.save(model_export_path)
 
     # make predictions and write to file
     # NOTE: theory suggests we should make predictions on heldout data ("cross fitting" or "sample splitting")
     # but our experiments showed best results by just reusing the data
     # You can accomodate sample splitting by using the splitting arguments for the dataset creation
 
+    # create data and model w/o masking
     eval_data = make_dataset(is_training=False, do_masking=False)
     dragon_model, core_model = _get_dragon_model(do_masking=False)
-    # TODO: check this
+    # reload the model weights (necessary because we've obliterated the masking)
     checkpoint = tf.train.Checkpoint(model=dragon_model)
-    checkpoint.restore(FLAGS.model_export_path).assert_existing_objects_matched()
+    checkpoint.restore(saved_path).assert_existing_objects_matched()
+    dragon_model.compile()
 
     with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
         attribute_names = ['in_test',
