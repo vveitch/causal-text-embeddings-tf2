@@ -315,15 +315,35 @@ def main(_):
 
     with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
         names = hydra_model.output_names
+        if missing_outcomes:
+            g0_names = ['g0_'+str(t) for t in range(num_treatments)]
+            g1_names = ['g1_'+str(t) for t in range(num_treatments)]
+            names = g0_names + g1_names + names[2:]
+        else:
+            g_names = ['g'+str(t) for t in range(num_treatments)]
+            names = g_names + names[1:]
+
+        names = ['id', 'outcome', 'treatment'] + names
+        header = "\t".join(name for name in names) + "\n"
+        writer.write(header)
+
         for f, l in eval_data:
             outputs = hydra_model.predict(f)
             if missing_outcomes:
-                # in this case, g0 and g1 are vector-valued
-                g0 = outputs[0]
-                g1 = outputs[1]
+                g0s = [g.numpy() for g in tf.unstack(outputs[0])]
+                g1s = [g.numpy() for g in tf.unstack(outputs[1])]
+                m = [outputs[2].numpy()]
+                qs = [q.numpy() for q in outputs[3:]]
+                predictions = g0s + g1s + m + qs
+            else:
+                gs = [g.numpy() for g in tf.unstack(outputs[0])]
+                qs = [q.numpy() for q in outputs[1:]]
+                predictions = gs + qs
 
-            at_df = pd.DataFrame(outputs).T
-            writer.write(at_df.to_csv(sep="\t", header=names))
+            labels = [l['id'], l['outcome'].numpy(), l['treatment'].numpy()]  # treatments is sparse coded
+
+            outs = pd.DataFrame(labels + predictions).T
+            writer.write(outs.to_csv(sep="\t", header=False))
 
 
 if __name__ == '__main__':
