@@ -57,7 +57,7 @@ flags.DEFINE_string(
     'Path to file that contains meta data about input '
     'to be used for training and evaluation.')
 flags.DEFINE_integer(
-    'max_seq_length', 128,
+    'max_seq_length', 250,
     'The maximum total input sequence length after WordPiece tokenization. '
     'Sequences longer than this will be truncated, and sequences shorter '
     'than this will be padded.')
@@ -88,7 +88,7 @@ flags.DEFINE_string("test_splits", '9', "indices of test splits")
 flags.DEFINE_string("prediction_file", "output/predictions.tsv", "path where predictions (tsv) will be written")
 
 # more complicated data
-flags.DEFINE_integer("num_treatments", 221, "number of treatment levels")
+flags.DEFINE_integer("num_treatments", 11, "number of treatment levels")
 flags.DEFINE_bool("missing_outcomes", True, "Whether there are missing outcomes")
 
 FLAGS = flags.FLAGS
@@ -120,13 +120,13 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
 
             # construct the sample weighting dictionary
             t = labels['treatment']
-            y_is_obs = tf.cast(labels['outcome_observed'], tf.float32)
+            y_is_obs = tf.cast(labels['outcome_observed'], tf.float32)[:, 0]
 
             sample_weights = {'g0': 1 - y_is_obs, 'g1': y_is_obs}  # these heads correspond to P(T| missing = ~, x)
             # mask a treatment head if (1) that treatment wasn't assigned, or (2) the outcome is missing
             for treat in range(num_treatments):
                 treat_active = tf.equal(t, treat)
-                treat_active = tf.logical_and(treat_active, labels['outcome_observed'])
+                treat_active = tf.logical_and(treat_active, labels['outcome_observed'])[:,0]
                 sample_weights[f"q{treat}"] = tf.cast(treat_active, tf.float32)
             return features, labels_out, sample_weights
 
@@ -158,12 +158,13 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
 
         dataset = dataset.map(_standardize_label_naming)
 
-        hydra_keras_format = make_hydra_keras_format(num_treatments, missing_outcomes=missing_outcomes)
-        dataset = dataset.map(hydra_keras_format)
-
+        # batching needs to happen before sample weights are created
         dataset = dataset.shuffle(1000)
         dataset = dataset.batch(FLAGS.train_batch_size, drop_remainder=True)
         dataset = dataset.prefetch(1024)
+
+        hydra_keras_format = make_hydra_keras_format(num_treatments, missing_outcomes=missing_outcomes)
+        dataset = dataset.map(hydra_keras_format)
 
         return dataset
     else:
@@ -235,7 +236,7 @@ def main(_):
         dragon_model, core_model = (
             bert_models.hydra_model(
                 bert_config,
-                max_seq_length=128,
+                max_seq_length=FLAGS.max_seq_length,
                 binary_outcome=True,
                 num_treatments=num_treatments,
                 missing_outcomes=missing_outcomes,

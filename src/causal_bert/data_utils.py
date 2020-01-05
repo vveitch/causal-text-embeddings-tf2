@@ -13,6 +13,7 @@ MININT = -2147483648
 
 
 # Masking
+@tf.function
 def _create_masked_lm_predictions(token_ids: tf.Tensor,
                                   masked_lm_prob: float,
                                   max_predictions_per_seq: int,
@@ -76,7 +77,6 @@ def _make_input_id_masker(tokenizer, seed,
                           max_predictions_per_seq=20):
     # (One of) Bert's unsupervised objectives is to mask some fraction of the input words and predict the masked words
 
-    @tf.function
     def masker(data):
         token_ids = data['input_word_ids']
         maybe_masked_input_ids, masked_lm_positions, masked_lm_ids, masked_lm_weights = _create_masked_lm_predictions(
@@ -86,13 +86,17 @@ def _make_input_id_masker(tokenizer, seed,
             max_predictions_per_seq=max_predictions_per_seq,
             vocab=tokenizer.vocab,
             seed=seed)
-        return {
-            **data,
-            'input_ids': maybe_masked_input_ids,
-            'masked_lm_positions': masked_lm_positions,
-            'masked_lm_ids': masked_lm_ids,
-            'masked_lm_weights': masked_lm_weights
-        }
+        data['input_word_ids'] = maybe_masked_input_ids
+        data['masked_lm_positions'] = masked_lm_positions
+        data['masked_lm_ids'] = masked_lm_ids
+        data['masked_lm_weights'] = masked_lm_weights
+
+        # official BERT models require next sentence label inputs, so we spoof some nonsense
+        if not 'next_sentence_labels' in data.keys():
+            batch_size = 1 if data['input_word_ids']._rank()==1 else data['input_word_ids'].shape[0]
+            data['next_sentence_labels'] = tf.zeros(batch_size)
+
+        return data
 
     return masker
 
