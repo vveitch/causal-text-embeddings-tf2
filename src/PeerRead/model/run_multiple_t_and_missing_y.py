@@ -150,13 +150,16 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
         l['treatment'] = l.pop('year')
         if missing_outcomes:
             l['outcome_observed'] = tf.not_equal(l['outcome'], -1)
+        # placeholder so that passed in labels are non-negative
+        l['outcome'] = tf.where(l['outcome_observed'], l['outcome'], tf.zeros_like(l['outcome']))
+
         return f, l
 
     dataset = dataset.map(_standardize_label_naming)
 
     if is_training:
         # batching needs to happen before sample weights are created
-        dataset = dataset.shuffle(1000)
+        dataset = dataset.shuffle(25000)
         dataset = dataset.batch(FLAGS.train_batch_size, drop_remainder=True)
         dataset = dataset.prefetch(1024)
 

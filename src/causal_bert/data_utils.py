@@ -141,7 +141,7 @@ def _decode_record(record, name_to_features):
     return example
 
 
-def load_basic_bert_data(file_paths,
+def load_basic_bert_data(input_files_or_globs,
                          seq_length,
                          is_training=True,
                          input_pipeline_context=None):
@@ -154,7 +154,12 @@ def load_basic_bert_data(file_paths,
             tf.io.FixedLenFeature([1], tf.int64),
     }
 
-    dataset = tf.data.Dataset.list_files(file_paths, shuffle=is_training)
+    input_files = []
+    for input_pattern in input_files_or_globs.split(","):
+        input_files.extend(tf.io.gfile.glob(input_pattern))
+    dataset = tf.data.Dataset.from_tensor_slices(input_files)
+
+    # dataset = tf.data.Dataset.list_files(input_files, shuffle=is_training)
 
     if input_pipeline_context and input_pipeline_context.num_input_pipelines > 1:
         dataset = dataset.shard(input_pipeline_context.num_input_pipelines,
@@ -164,14 +169,15 @@ def load_basic_bert_data(file_paths,
         dataset = dataset.repeat()
         # We set shuffle buffer to exactly match total number of
         # training files to ensure that training data is well shuffled.
-        dataset = dataset.shuffle(len(file_paths))
+        dataset = dataset.shuffle(len(input_files))
 
     # In parallel, create tf record dataset for each train files.
     # cycle_length = 8 means that up to 8 files will be read and deserialized in
     # parallel. You may want to increase this number if you have a large number of
     # CPU cores.
+    cycle_length = min(len(input_files), 8)
     dataset = dataset.interleave(
-        tf.data.TFRecordDataset, cycle_length=8,
+        tf.data.TFRecordDataset, cycle_length=cycle_length,
         num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     decode_fn = lambda record: _decode_record(record, name_to_features)
@@ -252,13 +258,14 @@ def _make_labeling_v2(label_df: pd.DataFrame, do_factorize=False):
     ids = tf.convert_to_tensor(label_df.id, tf.int32)
     label_df = label_df.drop(columns=['id'])
 
-    def _factorize_nonfloats(col):
-        if not np.issubdtype(col, np.floating):
-            return pd.factorize(col)[0]
-        else:
-            return col
+    if do_factorize:
+        def _factorize_nonfloats(col):
+            if not np.issubdtype(col, np.floating):
+                return pd.factorize(col)[0]
+            else:
+                return col
 
-    label_df = label_df.apply(_factorize_nonfloats, axis=0)
+        label_df = label_df.apply(_factorize_nonfloats, axis=0)
 
     int_df = label_df.select_dtypes(include='int')
     int_names = list(int_df.keys())
@@ -271,15 +278,13 @@ def _make_labeling_v2(label_df: pd.DataFrame, do_factorize=False):
     num_floats = len(float_names)
 
     @tf.function
-    def labeling(data: dict, labels=None):
-        id = data['id']
+    def get_labels(id: tf.Tensor):
         idx = tf.searchsorted(ids, tf.transpose(id), out_type=tf.int32)  # id should be [batch_size, 1], so must transp
         idx = tf.transpose(idx)  # to get to shape [batch_size, 1]
 
         in_label_df = tf.equal(id, tf.gather(ids, idx))
 
-        if labels is None:
-            labels = {}
+        labels = {}
 
         if num_ints > 0:
             samp_int_vals = tf.gather(int_values, idx)
@@ -295,12 +300,18 @@ def _make_labeling_v2(label_df: pd.DataFrame, do_factorize=False):
 
         labels['in_label_df'] = in_label_df
 
+        return labels
+
+    def labeling(data: dict, labels=None):
+        id = data['id']
+        added_labels = get_labels(id)
+        labels = {**labels, **added_labels} if labels else added_labels
         return data, labels
 
     return labeling
 
 
-def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame, filter_labeled=True):
+def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame, filter_labeled=True, do_factorize=False):
     """
     Produce a tensorflow dataset with labels by merging a dataset without labels and pandas dataframe
 
@@ -313,15 +324,17 @@ def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame,
     Args:
         dataset: tf.data.Dataset. Must yield a dictionary which has key 'index'
         label_df: pd.DataFrame. The index should contain (a subset of) the values of 'index' in the tensorflow dataset.
-            Each column should either be categorical or numerical. NaNs are allowed
+            Each column should either be categorical or numerical.
         filter_labeled: bool. If True, then any batch that has 1 or more examples missing labels is filtered
             WARNING: this may result in very slow performance for large batches if missing labels are common.
             consider applying batching after this function
+        do_factorize: bool. If True, then all non-float columns will be factorized (NaNs get mapped to -1)
+            It's probably best practice to do this manually and not use the automation
 
     Returns: tf.data.Dataset that yields (original, labels_from_pandas)
 
     """
-    labeling = _make_labeling_v2(label_df)
+    labeling = _make_labeling_v2(label_df, do_factorize=do_factorize)
     lab_dataset = dataset.map(
         labeling, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
