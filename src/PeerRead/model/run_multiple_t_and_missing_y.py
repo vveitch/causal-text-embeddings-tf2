@@ -208,7 +208,7 @@ def main(_):
     #
     bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
     epochs = FLAGS.num_train_epochs
-    train_data_size = 50000  # todo: fix hardcording
+    train_data_size = 11778  # todo: fix hardcording
     steps_per_epoch = int(train_data_size / FLAGS.train_batch_size)
     warmup_steps = int(epochs * train_data_size * 0.1 / FLAGS.train_batch_size)
     initial_lr = FLAGS.learning_rate
@@ -279,7 +279,7 @@ def main(_):
 
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
-        checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir)
+        checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir, save_weights_only=True)
 
         callbacks = [summary_callback, checkpoint_callback]
 
