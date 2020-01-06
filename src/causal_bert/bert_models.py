@@ -171,9 +171,8 @@ def dragon_model(bert_config,
                                               initializer=None)
 
         inputs = pt_model.input
-        unsup_loss = pt_model.outputs[0]
-        unsup_loss = unsup_scale * tf.reduce_mean(
-            unsup_loss)  # average over both masked words in sentences and over batch
+        unsup_loss = pt_model.outputs
+        unsup_loss = unsup_scale * tf.reduce_mean(unsup_loss)
 
     else:
         input_word_ids = tf.keras.layers.Input(
@@ -249,9 +248,8 @@ def hydra_model(bert_config,
                                               initializer=None)
 
         inputs = pt_model.input
-        unsup_loss = pt_model.outputs[0]
-        unsup_loss = unsup_scale * tf.reduce_mean(
-            unsup_loss)  # average over both masked words in sentences and over batch
+        unsup_loss = pt_model.outputs
+        unsup_loss = unsup_scale * tf.reduce_mean(unsup_loss)
 
     else:
         input_word_ids = tf.keras.layers.Input(

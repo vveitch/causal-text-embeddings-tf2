@@ -232,7 +232,7 @@ def main(_):
 
     # the model
     def _get_hydra_model(do_masking):
-        dragon_model, core_model = (
+        hydra_model, core_model = (
             bert_models.hydra_model(
                 bert_config,
                 max_seq_length=FLAGS.max_seq_length,
@@ -243,9 +243,9 @@ def main(_):
                 max_predictions_per_seq=20,
                 unsup_scale=1.))
 
-        dragon_model.optimizer = optimization.create_optimizer(
+        hydra_model.optimizer = optimization.create_optimizer(
             FLAGS.train_batch_size * initial_lr, steps_per_epoch * epochs, warmup_steps)
-        return dragon_model, core_model
+        return hydra_model, core_model
 
     # training. strategy.scope context allows use of multiple devices
     with strategy.scope():
@@ -292,6 +292,7 @@ def main(_):
             callbacks=callbacks)
 
     # save a final model checkpoint (so we can restore weights into model w/o training idiosyncracies)
+    hydra_model.optimizer = None
     if FLAGS.model_export_path:
         model_export_path = FLAGS.model_export_path
     else:
