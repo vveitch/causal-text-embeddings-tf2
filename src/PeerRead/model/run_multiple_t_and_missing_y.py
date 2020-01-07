@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import os
 import pandas as pd
+import time
 
 from absl import app
 from absl import flags
@@ -119,7 +120,7 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
             t = labels['treatment']
             y_is_obs = tf.cast(labels['outcome_observed'], tf.float32)[:, 0]
 
-            sample_weights = {'g0': 1 - y_is_obs, 'g1': y_is_obs}  # these heads correspond to P(T| missing = ~, x)
+            sample_weights = {'g0': 1.0 - y_is_obs, 'g1': y_is_obs}  # these heads correspond to P(T| missing = ~, x)
             # mask a treatment head if (1) that treatment wasn't assigned, or (2) the outcome is missing
             for treat in range(num_treatments):
                 treat_active = tf.equal(t, treat)
@@ -258,6 +259,7 @@ def main(_):
                                   do_masking=FLAGS.do_masking)
         hydra_model, core_model = _get_hydra_model(FLAGS.do_masking)
         optimizer = hydra_model.optimizer
+        print(hydra_model.summary())
 
         if FLAGS.init_checkpoint:
             checkpoint = tf.train.Checkpoint(model=core_model)
@@ -275,10 +277,13 @@ def main(_):
             losses[f"q{treat}"] = 'binary_crossentropy'
             loss_weights[f"q{treat}"] = 0.1
 
+        t0 = time.time()
         hydra_model.compile(optimizer=optimizer,
                             loss=losses,
                             loss_weights=loss_weights,
                             weighted_metrics=make_hydra_metrics(num_treatments, missing_outcomes))
+        t1 = time.time()
+        print("Compile time: {}".format(t1-t0))
 
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')

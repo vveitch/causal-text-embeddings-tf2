@@ -19,6 +19,8 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import time
+
 import pandas as pd
 
 from absl import app
@@ -225,17 +227,22 @@ def main(_):
         if FLAGS.init_checkpoint:
             checkpoint = tf.train.Checkpoint(model=core_model)
             checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
-
+        t0 = time.time()
         dragon_model.compile(optimizer=optimizer,
                              loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy',
                                    'q1': 'binary_crossentropy'},
                              loss_weights={'g': 0.8, 'q0': 0.1, 'q1': 0.1},
                              weighted_metrics=make_dragonnet_metrics())
+        t1 = time.time()
+        print("Compile time: {}".format(t1-t0))
+
+
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
         checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir, save_weights_only=True)
 
-        callbacks = [summary_callback, checkpoint_callback]
+        # callbacks = [summary_callback, checkpoint_callback]
+        callbacks = [summary_callback]
 
         dragon_model.fit(
             x=keras_train_data,
