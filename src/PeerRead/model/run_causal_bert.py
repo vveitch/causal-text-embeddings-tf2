@@ -242,8 +242,7 @@ def main(_):
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
         checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir, save_weights_only=True)
 
-        # callbacks = [summary_callback, checkpoint_callback]
-        callbacks = [summary_callback]
+        callbacks = [summary_callback, checkpoint_callback]
 
         dragon_model.fit(
             x=keras_train_data,
