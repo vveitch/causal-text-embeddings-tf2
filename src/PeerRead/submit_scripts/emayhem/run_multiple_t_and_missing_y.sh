@@ -22,7 +22,7 @@ python -m PeerRead.model.run_multiple_t_and_missing_y \
 --init_checkpoint=$INIT_FILE \
 --input_files=$DATA_FILE \
 --model_dir=$OUTPUT_DIR \
---num_train_epochs=3 \
+--num_train_epochs=25 \
 --seed=0 \
 --prediction_file=$PREDICTION_FILE \
 --label_df_file ../dat/PeerRead/proc/arxiv-all-multi-treat-and-missing-outcomes.feather

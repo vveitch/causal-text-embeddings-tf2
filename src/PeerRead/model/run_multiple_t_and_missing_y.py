@@ -174,14 +174,14 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
 
 
 def make_hydra_metrics(num_treatments, missing_outcomes=False):
-    METRICS = [
+    basic_metrics = [
         tf.keras.metrics.BinaryAccuracy,
         tf.keras.metrics.Precision,
         tf.keras.metrics.Recall,
         tf.keras.metrics.AUC
     ]
 
-    NAMES = ['binary_accuracy', 'precision', 'recall', 'auc']
+    q_names = ['q/binary_accuracy', 'q/precision', 'q/recall', 'q/auc']
 
     if missing_outcomes:
         metrics = {'g0': [tf.keras.metrics.SparseCategoricalAccuracy()],
@@ -191,7 +191,7 @@ def make_hydra_metrics(num_treatments, missing_outcomes=False):
         metrics = {'g': [tf.keras.metrics.SparseCategoricalAccuracy()]}
 
     for treat in range(num_treatments):
-        q_metric = [m(name=n) for m, n in zip(METRICS, NAMES)]
+        q_metric = [m(name=n) for m, n in zip(basic_metrics, q_names)]
         metrics[f"q{treat}"] = q_metric
 
     return metrics

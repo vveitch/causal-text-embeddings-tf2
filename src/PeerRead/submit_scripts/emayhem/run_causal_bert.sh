@@ -22,7 +22,7 @@ python -m PeerRead.model.run_causal_bert \
 --init_checkpoint=$INIT_FILE \
 --input_files=$DATA_FILE \
 --model_dir=$OUTPUT_DIR \
---num_train_epochs=3 \
+--num_train_epochs=25 \
 --seed=0 \
 --prediction_file=$PREDICTION_FILE
 # --strategy_type=mirror \
