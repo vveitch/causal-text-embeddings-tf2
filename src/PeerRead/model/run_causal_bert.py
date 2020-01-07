@@ -202,8 +202,9 @@ def main(_):
                 use_unsup=do_masking,
                 max_predictions_per_seq=20,
                 unsup_scale=1.))
-        dragon_model.optimizer = optimization.create_optimizer(
-            FLAGS.train_batch_size * initial_lr, steps_per_epoch * epochs, warmup_steps)
+        # dragon_model.optimizer = optimization.create_optimizer(
+        #     FLAGS.train_batch_size * initial_lr, steps_per_epoch * epochs, warmup_steps)
+        dragon_model.optimizer = tf.keras.optimizers.SGD(learning_rate=FLAGS.train_batch_size * initial_lr)
         return dragon_model, core_model
 
     @tf.function
