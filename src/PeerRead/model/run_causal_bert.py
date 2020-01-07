@@ -197,7 +197,7 @@ def main(_):
         dragon_model, core_model = (
             bert_models.dragon_model(
                 bert_config,
-                max_seq_length=250,
+                max_seq_length=FLAGS.max_seq_length,
                 binary_outcome=True,
                 use_unsup=do_masking,
                 max_predictions_per_seq=20,
