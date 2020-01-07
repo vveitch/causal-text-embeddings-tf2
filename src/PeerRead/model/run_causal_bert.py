@@ -202,6 +202,7 @@ def main(_):
                 use_unsup=do_masking,
                 max_predictions_per_seq=20,
                 unsup_scale=1.))
+        # WARNING: the original optimizer causes a bug where loss increases after first epoch
         # dragon_model.optimizer = optimization.create_optimizer(
         #     FLAGS.train_batch_size * initial_lr, steps_per_epoch * epochs, warmup_steps)
         dragon_model.optimizer = tf.keras.optimizers.SGD(learning_rate=FLAGS.train_batch_size * initial_lr)
@@ -228,14 +229,11 @@ def main(_):
         if FLAGS.init_checkpoint:
             checkpoint = tf.train.Checkpoint(model=core_model)
             checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
-        t0 = time.time()
         dragon_model.compile(optimizer=optimizer,
                              loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy',
                                    'q1': 'binary_crossentropy'},
                              loss_weights={'g': 0.8, 'q0': 0.1, 'q1': 0.1},
                              weighted_metrics=make_dragonnet_metrics())
-        t1 = time.time()
-        print("Compile time: {}".format(t1-t0))
 
 
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)

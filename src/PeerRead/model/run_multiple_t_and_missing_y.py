@@ -247,8 +247,11 @@ def main(_):
                 max_predictions_per_seq=20,
                 unsup_scale=1.))
 
-        hydra_model.optimizer = optimization.create_optimizer(
-            FLAGS.train_batch_size * initial_lr, steps_per_epoch * epochs, warmup_steps)
+        # WARNING: the original optimizer causes a bug where loss increases after first epoch
+        # hydra_model.optimizer = optimization.create_optimizer(
+        #     FLAGS.train_batch_size * initial_lr, steps_per_epoch * epochs, warmup_steps)
+        hydra_model.optimizer = tf.keras.optimizers.SGD(learning_rate=FLAGS.train_batch_size * initial_lr)
+
         return hydra_model, core_model
 
     # training. strategy.scope context allows use of multiple devices
@@ -277,13 +280,10 @@ def main(_):
             losses[f"q{treat}"] = 'binary_crossentropy'
             loss_weights[f"q{treat}"] = 0.1
 
-        t0 = time.time()
         hydra_model.compile(optimizer=optimizer,
                             loss=losses,
                             loss_weights=loss_weights,
                             weighted_metrics=make_hydra_metrics(num_treatments, missing_outcomes))
-        t1 = time.time()
-        print("Compile time: {}".format(t1-t0))
 
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
