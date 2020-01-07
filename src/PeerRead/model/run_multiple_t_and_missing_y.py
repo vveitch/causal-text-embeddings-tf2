@@ -133,7 +133,7 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
 def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, missing_outcomes=False, do_masking=False,
                  input_pipeline_context=None):
     df_file = FLAGS.label_df_file
-    dataset = load_basic_bert_data(tf_record_files, 250, is_training=is_training,
+    dataset = load_basic_bert_data(tf_record_files, FLAGS.max_seq_length, is_training=is_training,
                                    input_pipeline_context=input_pipeline_context)
 
     if do_masking:
