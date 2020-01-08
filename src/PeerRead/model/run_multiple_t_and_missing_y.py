@@ -20,7 +20,6 @@ from __future__ import print_function
 
 import os
 import pandas as pd
-import time
 
 from absl import app
 from absl import flags
@@ -49,7 +48,7 @@ flags.DEFINE_bool(
 
 flags.DEFINE_string('input_files', None,
                     'File path to retrieve training data for pre-training.')
-flags.DEFINE_string('label_df_file', 'dat/PeerRead/proc/arxiv-all-multi-treat-and-missing-outcomes.feather',
+flags.DEFINE_string('label_df_file', None,
                     'File path for pandas dataframe containing labels')
 
 # Model training specific flags.
@@ -110,7 +109,7 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
         @tf.function
         def _hydra_keras_format(features, labels):
             # construct the label dictionary
-            y = labels['outcome']
+            y = tf.cast(labels['outcome'], tf.int32)
             y_is_obs_label = tf.cast(labels['outcome_observed'], tf.int32)
             labels_out = {'g0': labels['treatment'], 'g1': labels['treatment'], 'y_is_obs': y_is_obs_label}
             for treat in range(num_treatments):
@@ -118,13 +117,15 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
 
             # construct the sample weighting dictionary
             t = labels['treatment']
-            y_is_obs = tf.cast(labels['outcome_observed'], tf.float32)[:, 0]
+            y_is_obs_weight = tf.cast(labels['outcome_observed'], tf.float32)[:, 0]
+            y_is_obs_bool = tf.cast(labels['outcome_observed'], tf.bool)
 
-            sample_weights = {'g0': 1.0 - y_is_obs, 'g1': y_is_obs}  # these heads correspond to P(T| missing = ~, x)
+            sample_weights = {'g0': 1 - y_is_obs_weight,
+                              'g1': y_is_obs_weight}  # these heads correspond to P(T| missing = ~, x)
             # mask a treatment head if (1) that treatment wasn't assigned, or (2) the outcome is missing
             for treat in range(num_treatments):
                 treat_active = tf.equal(t, treat)
-                treat_active = tf.logical_and(treat_active, labels['outcome_observed'])[:, 0]
+                treat_active = tf.logical_and(treat_active, y_is_obs_bool)[:, 0]
                 sample_weights[f"q{treat}"] = tf.cast(treat_active, tf.float32)
             return features, labels_out, sample_weights
 
@@ -296,7 +297,7 @@ def main(_):
             # validation_data=evaluation_dataset,
             steps_per_epoch=steps_per_epoch,
             epochs=epochs,
-            # vailidation_steps=eval_steps,
+            # validation_steps=eval_steps,
             callbacks=callbacks)
 
     # save a final model checkpoint (so we can restore weights into model w/o training idiosyncracies)
