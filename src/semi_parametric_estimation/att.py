@@ -50,6 +50,51 @@ def psi_tmle(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
     return psi_tmle
 
 
+def psi_q_only(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
+    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
+
+    ite_t = (q_t1 - q_t0)[t == 1]
+    estimate = ite_t.mean()
+    return estimate
+
+
+def psi_plugin(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
+    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
+
+    ite_t = g*(q_t1 - q_t0)/prob_t
+    estimate = ite_t.mean()
+    return estimate
+
+
+def psi_aiptw(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
+    # the robust ATT estimator described in eqn 3.9 of
+    # https://www.econstor.eu/bitstream/10419/149795/1/869216953.pdf
+
+    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
+    estimate = (t*(y-q_t0) - (1-t)*(g/(1-g))*(y-q_t0)).mean() / prob_t
+
+    return estimate
+
+
+def psi_very_naive(t, y):
+    return y[t == 1].mean() - y[t == 0].mean()
+
+
+def att_estimates(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05, deps=0.0001):
+
+    one_step_tmle = make_one_step_tmle(prob_t, deps_default=deps)
+
+    very_naive = psi_very_naive(t,y)
+    q_only = psi_q_only(q_t0, q_t1, g, t, y, prob_t, truncate_level)
+    plugin = psi_plugin(q_t0, q_t1, g, t, y, prob_t, truncate_level)
+    aiptw = psi_aiptw(q_t0, q_t1, g, t, y, prob_t, truncate_level)
+    one_step_tmle = one_step_tmle(q_t0, q_t1, g, t, y, truncate_level)  # note different signature
+
+    estimates = {'very_naive': very_naive, 'q_only': q_only, 'plugin': plugin, 'one_step_tmle': one_step_tmle, 'aiptw': aiptw}
+
+    return estimates
+
+
 def make_one_step_tmle(prob_t, deps_default=0.001):
     "Make a function that computes the 1-step TMLE ala https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4912007/"
 
@@ -153,46 +198,12 @@ def make_one_step_tmle(prob_t, deps_default=0.001):
     return tmle
 
 
-def psi_q_only(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
-    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
+#
+def one_step_att(y, t, inc, q_t0, q_t1, g0, g1, p_inc):
+    # any bounding or truncation
 
-    ite_t = (q_t1 - q_t0)[t == 1]
-    estimate = ite_t.mean()
-    return estimate
+    inc/()
 
-
-def psi_plugin(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
-    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
-
-    ite_t = g*(q_t1 - q_t0)/prob_t
-    estimate = ite_t.mean()
-    return estimate
+    pass
 
 
-def psi_aiptw(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
-    # the robust ATT estimator described in eqn 3.9 of
-    # https://www.econstor.eu/bitstream/10419/149795/1/869216953.pdf
-
-    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
-    estimate = (t*(y-q_t0) - (1-t)*(g/(1-g))*(y-q_t0)).mean() / prob_t
-
-    return estimate
-
-
-def psi_very_naive(t, y):
-    return y[t == 1].mean() - y[t == 0].mean()
-
-
-def att_estimates(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05, deps=0.0001):
-
-    one_step_tmle = make_one_step_tmle(prob_t, deps_default=deps)
-
-    very_naive = psi_very_naive(t,y)
-    q_only = psi_q_only(q_t0, q_t1, g, t, y, prob_t, truncate_level)
-    plugin = psi_plugin(q_t0, q_t1, g, t, y, prob_t, truncate_level)
-    aiptw = psi_aiptw(q_t0, q_t1, g, t, y, prob_t, truncate_level)
-    one_step_tmle = one_step_tmle(q_t0, q_t1, g, t, y, truncate_level)  # note different signature
-
-    estimates = {'very_naive': very_naive, 'q_only': q_only, 'plugin': plugin, 'one_step_tmle': one_step_tmle, 'aiptw': aiptw}
-
-    return estimates

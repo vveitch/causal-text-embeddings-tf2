@@ -137,11 +137,6 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
     dataset = load_basic_bert_data(tf_record_files, FLAGS.max_seq_length, is_training=is_training,
                                    input_pipeline_context=input_pipeline_context)
 
-    if do_masking:
-        tokenizer = tokenization.FullTokenizer(
-            vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
-        dataset = add_masking(dataset, tokenizer=tokenizer)
-
     label_df = pd.read_feather(df_file)
     dataset = dataset_labels_from_pandas(dataset, label_df)
 
@@ -156,17 +151,25 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
 
         return f, l
 
-    dataset = dataset.map(_standardize_label_naming)
+    dataset = dataset.map(_standardize_label_naming, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    dataset = dataset.cache()
+
+    if do_masking:
+        tokenizer = tokenization.FullTokenizer(
+            vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
+        dataset = add_masking(dataset, tokenizer=tokenizer)
 
     if is_training:
         # batching needs to happen before sample weights are created
         dataset = dataset.shuffle(25000)
         dataset = dataset.batch(FLAGS.train_batch_size, drop_remainder=True)
-        dataset = dataset.prefetch(1024)
 
-        # create sample weights and label outputs in the manner expected keras
+        # create sample weights and label outputs in the manner expected by keras
         hydra_keras_format = make_hydra_keras_format(num_treatments, missing_outcomes=missing_outcomes)
-        dataset = dataset.map(hydra_keras_format)
+        dataset = dataset.map(hydra_keras_format, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+        dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         return dataset
 
@@ -338,10 +341,10 @@ def main(_):
         for f, l in eval_data:
             outputs = hydra_model.predict(f)
             if missing_outcomes:
-                g0s = [g.numpy() for g in tf.unstack(outputs[0])]
-                g1s = [g.numpy() for g in tf.unstack(outputs[1])]
-                m = [outputs[2].numpy()]
-                qs = [q.numpy() for q in outputs[3:]]
+                g0s = [g for g in tf.unstack(outputs[0])]
+                g1s = [g for g in tf.unstack(outputs[1])]
+                m = [outputs[2]]
+                qs = [q for q in outputs[3:]]
                 predictions = g0s + g1s + m + qs
             else:
                 gs = [g.numpy() for g in tf.unstack(outputs[0])]
