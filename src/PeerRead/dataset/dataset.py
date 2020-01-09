@@ -18,7 +18,7 @@ try:
 except ImportError:
     import numpy.random as random
 
-from tf_official import nlp as tokenization
+from tf_official.nlp.bert import tokenization
 from PeerRead.dataset.sentence_masking import create_masked_lm_predictions
 
 # hardcoded because protobuff is not self describing for some bizarre reason
@@ -443,13 +443,13 @@ def dataset_processing(dataset, parser, masker, labeler,
     return dataset
 
 
-def make_input_fn_from_file(input_files_or_glob, seq_length,
-                            num_splits, dev_splits, test_splits,
-                            tokenizer,
-                            is_training,
-                            do_masking=True,
-                            filter_test=False,
-                            shuffle_buffer_size=100, seed=0, labeler=None):
+def make_dataset_fn_from_file(input_files_or_glob, seq_length,
+                              num_splits, dev_splits, test_splits,
+                              tokenizer,
+                              is_training,
+                              do_masking=True,
+                              filter_test=False,
+                              shuffle_buffer_size=100, seed=0, labeler=None):
     input_files = []
     for input_pattern in input_files_or_glob.split(","):
         input_files.extend(tf.io.gfile.glob(input_pattern))
@@ -496,6 +496,34 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
     return input_fn
 
 
+def make_unprocessed_PeerRead_dataset(input_files_or_glob, seq_length):
+    """
+    Utility to load and parse the full data with no batching, shuffling, relabeling, etc
+
+    Args:
+        input_files_or_glob:
+        seq_length:
+
+    Returns:
+
+    """
+
+    dataset = tf.data.Dataset.list_files(input_files_or_glob, shuffle=False)
+    dataset = dataset.interleave(
+        tf.data.TFRecordDataset, cycle_length=8,
+        num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    # make the record parsing ops
+    max_abstract_len = seq_length
+
+    parser = make_parser(max_abstract_len)  # parse the tf_record
+    parser = compose(parser, make_extra_feature_cleaning())
+
+    dataset = dataset.map(parser)
+
+    return dataset
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--shuffle_buffer_size', type=int, default=100)
@@ -507,12 +535,12 @@ def main():
     # for easy debugging
     # filename = "../../dat/PeerRead/proc/acl_2017.tf_record"
     # filename = glob.glob('/home/victor/Documents/causal-spe-embeddings/dat/PeerRead/proc/*.tf_record')
-    filename = 'dat/PeerRead/proc/arxiv-all.tf_record'
+    filename = '../dat/PeerRead/proc/arxiv-all.tf_record'
 
     # bert_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/1",
     #                             trainable=True)
     # vocab_file = bert_layer.resolved_object.vocab_file.asset_path.numpy()
-    vocab_file = 'pre-trained/uncased_L-12_H-768_A-12/vocab.txt'
+    vocab_file = '../pre-trained/uncased_L-12_H-768_A-12/vocab.txt'
 
     tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
 
@@ -522,22 +550,24 @@ def main():
     dev_splits = []
     test_splits = [1, 2]
 
-    labeler = make_buzzy_based_simulated_labeler(0.5, 5.0, 0.0, 'simple',
-                                                 seed=0)
+    # labeler = make_buzzy_based_simulated_labeler(0.5, 5.0, 0.0, 'simple',
+    #                                              seed=0)
 
-    input_dataset_from_filenames = make_input_fn_from_file(filename,
-                                                           250,
-                                                           num_splits,
-                                                           dev_splits,
-                                                           test_splits,
-                                                           tokenizer,
-                                                           do_masking=False,
-                                                           is_training=True,
-                                                           filter_test=False,
-                                                           shuffle_buffer_size=25000,
-                                                           labeler=labeler,
-                                                           seed=0)
-    params = {'batch_size': 32}
+    labeler = make_real_labeler('venue', 'accepted')
+
+    input_dataset_from_filenames = make_dataset_fn_from_file(filename,
+                                                             250,
+                                                             num_splits,
+                                                             dev_splits,
+                                                             test_splits,
+                                                             tokenizer,
+                                                             do_masking=False,
+                                                             is_training=True,
+                                                             filter_test=False,
+                                                             shuffle_buffer_size=25000,
+                                                             labeler=labeler,
+                                                             seed=0)
+    params = {'batch_size': 10000}
     dataset = input_dataset_from_filenames(params)
 
     print(dataset.element_spec)
@@ -546,6 +576,7 @@ def main():
         sample = val
 
     sample = next(iter(dataset))
+    print(tf.unique(sample[1]['treatment']))
 
     # print(sample[0]['masked_lm_ids'])
 

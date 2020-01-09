@@ -8,12 +8,12 @@
 
 source activate ct-nightly
 
-export INIT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/pre-training/PeerRead_stable
-export INIT_FILE=$INIT_DIR/ctl_step_100000.ckpt-100
+export INIT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/pre-training/PeerRead/pretrained
+export INIT_FILE=$INIT_DIR/bert_model.ckpt-102
 export BERT_BASE_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/uncased_L-12_H-768_A-12
 #export INIT_FILE=$BERT_BASE_DIR/bert_model.ckpt
 export DATA_FILE=/proj/sml_netapp/dat/undocumented/PeerRead/proc/arxiv-all.tf_record
-export OUTPUT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/cb_alt_run
+export OUTPUT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/cb_test
 export PREDICTION_FILE=$OUTPUT_DIR/predictions.tsv
 
 python -m PeerRead.model.run_causal_bert \
@@ -21,9 +21,8 @@ python -m PeerRead.model.run_causal_bert \
 --vocab_file=$BERT_BASE_DIR/vocab.txt \
 --init_checkpoint=$INIT_FILE \
 --input_files=$DATA_FILE \
---model_dir=$OUTPUT_DIR/PeerRead \
---num_train_epochs=3 \
+--model_dir=$OUTPUT_DIR \
+--num_train_epochs=10 \
 --seed=0 \
 --prediction_file=$PREDICTION_FILE
-
 # --strategy_type=mirror \
