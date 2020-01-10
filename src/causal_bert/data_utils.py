@@ -251,7 +251,6 @@ def _make_labeling_v2(label_df: pd.DataFrame, do_factorize=False):
     """
     helper function for dataset_labels_from_pandas
     """
-    # todo: produce meta-data here?
     label_df = label_df.copy()
     label_df = label_df.sort_values('id')  # so we can use tf.search_sorted
 

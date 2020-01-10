@@ -109,6 +109,16 @@ flags.DEFINE_string("prediction_file", "../output/predictions.tsv", "path where 
 FLAGS = flags.FLAGS
 
 
+@tf.function
+def _keras_format(features, labels):
+    # features, labels = sample
+    y = labels['outcome']
+    t = tf.cast(labels['treatment'], tf.float32)
+    labels = {'g': labels['treatment'], 'q0': y, 'q1': y}
+    sample_weights = {'q0': 1 - t, 'q1': t}
+    return features, labels, sample_weights
+
+
 def make_dataset(is_training: bool, do_masking=False):
     labeler = make_real_labeler(FLAGS.treatment, 'accepted')
 
@@ -133,7 +143,9 @@ def make_dataset(is_training: bool, do_masking=False):
 
     batch_size = FLAGS.train_batch_size if is_training else FLAGS.eval_batch_size
 
-    return train_input_fn(params={'batch_size': batch_size})
+    dataset = train_input_fn(params={'batch_size': batch_size})
+    dataset = dataset.map(_keras_format)
+    return dataset
 
 
 def make_dragonnet_metrics():
@@ -208,20 +220,10 @@ def main(_):
         dragon_model.optimizer = tf.keras.optimizers.SGD(learning_rate=FLAGS.train_batch_size * initial_lr)
         return dragon_model, core_model
 
-    @tf.function
-    def _keras_format(features, labels):
-        # features, labels = sample
-        y = labels['outcome']
-        t = tf.cast(labels['treatment'], tf.float32)
-        labels = {'g': labels['treatment'], 'q0': y, 'q1': y}
-        sample_weights = {'q0': 1 - t, 'q1': t}
-        return features, labels, sample_weights
-
     # training. strategy.scope context allows use of multiple devices
     do_training = False
     with strategy.scope():
-        input_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
-        keras_train_data = input_data.map(_keras_format)
+        keras_train_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
 
         dragon_model, core_model = _get_dragon_model(FLAGS.do_masking)
         optimizer = dragon_model.optimizer
@@ -229,6 +231,7 @@ def main(_):
         if FLAGS.init_checkpoint:
             checkpoint = tf.train.Checkpoint(model=core_model)
             checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
+
         dragon_model.compile(optimizer=optimizer,
                              loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy',
                                    'q1': 'binary_crossentropy'},
