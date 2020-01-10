@@ -2,6 +2,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -190,13 +192,18 @@ def load_basic_bert_data(input_files_or_globs,
 
 
 def dataset_to_pandas_df(dataset):
-    samples = []
+
+    samp_dict = defaultdict(list)
 
     for sample in iter(dataset):
-        numpy_sample = {k: v.numpy() for k, v in sample.items()}
-        samples += [numpy_sample]
+        for k, v in sample.items():
+            samp_dict[k] += [v.numpy().squeeze()]
 
-    df = pd.DataFrame(samples)
+    proto_dict = {}
+    for k, v in samp_dict.items():
+        proto_dict[k] = np.concatenate(v)
+
+    df = pd.DataFrame(proto_dict)
 
     return df
 

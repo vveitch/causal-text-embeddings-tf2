@@ -31,7 +31,7 @@ from tf_official.nlp.bert import tokenization, common_flags, model_saving_utils
 from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
 
-from causal_bert.data_utils import load_basic_bert_data, dataset_labels_from_pandas, add_masking
+from causal_bert.data_utils import load_basic_bert_data, dataset_labels_from_pandas, add_masking, dataset_to_pandas_df
 
 common_flags.define_common_bert_flags()
 
@@ -322,42 +322,44 @@ def main(_):
 
     eval_data = make_dataset(FLAGS.input_files, is_training=False, do_masking=False,
                              num_treatments=num_treatments, missing_outcomes=missing_outcomes)
+
     hydra_model, core_model = _get_hydra_model(do_masking=False)
     checkpoint = tf.train.Checkpoint(model=hydra_model)
     checkpoint.restore(saved_path).assert_existing_objects_matched()
-    hydra_model.compile()
+    hydra_model.compile()  # seems to erratically cause bugs to omit this? very puzzling
 
+    outputs = hydra_model.predict(x=eval_data)
+
+    out_dict = {}
+    if missing_outcomes:
+
+        for t, g0 in enumerate(tf.unstack(outputs[0], axis=-1)):
+            out_dict['g0_' + str(t)] = g0.numpy()
+
+        for t, g1 in enumerate(tf.unstack(outputs[1], axis=-1)):
+            out_dict['g1_' + str(t)] = g1.numpy()
+
+        out_dict['prob_y_obs'] = np.squeeze(outputs[2])
+
+        for out, q in enumerate(outputs[3:]):
+            out_dict['q' + str(out)] = np.squeeze(q)
+
+    else:
+
+        for t, g in enumerate(tf.unstack(outputs[0], axis=-1)):
+            out_dict['g_' + str(t)] = g.numpy()
+
+        for out, q in enumerate(outputs[1:]):
+            out_dict['q' + str(out)] = np.squeeze(q)
+
+    predictions = pd.DataFrame(out_dict)
+
+    label_dataset = eval_data.map(lambda f, l: l)
+    data_df = dataset_to_pandas_df(label_dataset)
+
+    outs = data_df.join(predictions)
     with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
-        names = hydra_model.output_names
-        if missing_outcomes:
-            g0_names = ['g0_' + str(t) for t in range(num_treatments)]
-            g1_names = ['g1_' + str(t) for t in range(num_treatments)]
-            names = g0_names + g1_names + names[2:]
-        else:
-            g_names = ['g' + str(t) for t in range(num_treatments)]
-            names = g_names + names[1:]
-
-        names = ['id', 'outcome', 'treatment'] + names
-        header = "\t".join(name for name in names) + "\n"
-        writer.write(header)
-
-        for f, l in eval_data:
-            outputs = hydra_model.predict(f)
-            if missing_outcomes:
-                g0s = [g for g in tf.unstack(outputs[0])]
-                g1s = [g for g in tf.unstack(outputs[1])]
-                m = [outputs[2]]
-                qs = [q for q in outputs[3:]]
-                predictions = g0s + g1s + m + qs
-            else:
-                gs = [g.numpy() for g in tf.unstack(outputs[0])]
-                qs = [q.numpy() for q in outputs[1:]]
-                predictions = gs + qs
-
-            labels = [l['id'], l['outcome'].numpy(), l['treatment'].numpy()]  # treatments is sparse coded
-
-            outs = pd.DataFrame(labels + predictions).T
-            writer.write(outs.to_csv(sep="\t", header=False))
+        writer.write(outs.to_csv(sep="\t"))
 
 
 if __name__ == '__main__':
