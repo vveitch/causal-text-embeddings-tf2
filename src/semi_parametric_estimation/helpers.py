@@ -13,21 +13,41 @@ def calibrate_g(g, t):
     :return:
     """
 
-    logit_g = logit(g).reshape(-1,1)
+    logit_g = logit(g).reshape(-1, 1)
     calibrator = lm.LogisticRegression(fit_intercept=False, C=1e6, solver='lbfgs')  # no intercept or regularization
     calibrator.fit(logit_g, t)
-    calibrated_g = calibrator.predict_proba(logit_g)[:,1]
+    calibrated_g = calibrator.predict_proba(logit_g)[:, 1]
     return calibrated_g
 
 
 def truncate_by_g(attribute, g, level=0.1):
-    keep_these = np.logical_and(g >= level, g <= 1.-level)
+    keep_these = np.logical_and(g >= level, g <= 1. - level)
 
     return attribute[keep_these]
 
-def truncate_all(truncatees, trunc_vec, truncate_level):
-    tv = np.copy(trunc_vec)
-    return [truncate_by_g(np.copy(t), tv, truncate_level) for t in truncatees]
+
+def truncate_by_value(input, lb, ub):
+    """
+    truncate input to lie in [lb, ub]
+
+    Args:
+        input: array or list of arrays
+        lb: lower bound, scalar or broadcastable to input
+        ub: upper bound, scalar or broadcastable to input
+
+    Returns: input truncated
+
+    """
+    def bound_one(one_in):
+        one_in = one_in.copy()
+        one_in[one_in < lb] = lb
+        one_in[one_in > ub] = ub
+        return one_in
+    if type(input) is list:
+        return [bound_one(one_in) for one_in in input]
+    else:
+        return bound_one(input)
+
 
 
 def truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level=0.05):
@@ -47,10 +67,10 @@ def truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level=0.05):
     return q_t0, q_t1, g, t, y
 
 
-
 def cross_entropy(y, p):
-    return -np.mean((y*np.log(p) + (1.-y)*np.log(1.-p)))
+    return -np.mean((y * np.log(p) + (1. - y) * np.log(1. - p)))
 
 
-def mse(x, y):
-    return np.mean(np.square(x-y))
+def mse(x, y, weights=None):
+    per_example_loss = weights * np.square(x - y) if weights else np.square(x - y)
+    return np.mean(per_example_loss)

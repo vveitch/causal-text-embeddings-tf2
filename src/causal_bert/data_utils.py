@@ -77,7 +77,7 @@ def _make_input_id_masker(tokenizer, seed,
                           max_predictions_per_seq=20):
     # (One of) Bert's unsupervised objectives is to mask some fraction of the input words and predict the masked words
 
-    def masker(data):
+    def masker(data, label=None):
         token_ids = data['input_word_ids']
         maybe_masked_input_ids, masked_lm_positions, masked_lm_ids, masked_lm_weights = _create_masked_lm_predictions(
             token_ids,
@@ -93,10 +93,10 @@ def _make_input_id_masker(tokenizer, seed,
 
         # official BERT models require next sentence label inputs, so we spoof some nonsense
         if not 'next_sentence_labels' in data.keys():
-            batch_size = 1 if data['input_word_ids']._rank()==1 else data['input_word_ids'].shape[0]
+            batch_size = 1 if data['input_word_ids']._rank() == 1 else data['input_word_ids'].shape[0]
             data['next_sentence_labels'] = tf.zeros(batch_size)
 
-        return data
+        return data, label if label else data
 
     return masker
 
@@ -251,7 +251,6 @@ def _make_labeling_v2(label_df: pd.DataFrame, do_factorize=False):
     """
     helper function for dataset_labels_from_pandas
     """
-    # todo: produce meta-data here?
     label_df = label_df.copy()
     label_df = label_df.sort_values('id')  # so we can use tf.search_sorted
 
@@ -328,6 +327,7 @@ def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame,
         filter_labeled: bool. If True, then any batch that has 1 or more examples missing labels is filtered
             WARNING: this may result in very slow performance for large batches if missing labels are common.
             consider applying batching after this function
+        cache: string. if present, dataset with labels will be cached to this file. If 'True', will be cached to memory
         do_factorize: bool. If True, then all non-float columns will be factorized (NaNs get mapped to -1)
             It's probably best practice to do this manually and not use the automation
 
@@ -348,20 +348,23 @@ def main():
     # label_df = pd.read_feather('dat/PeerRead/proc/arxiv-all-labels-only.feather')
 
     dataset = load_basic_bert_data('dat/PeerRead/proc/arxiv-all.tf_record', 250,
-                                   is_training=False)
+                                   is_training=True)
+
+    label_df = pd.read_feather('dat/PeerRead/proc/arxiv-all-multi-treat-and-missing-outcomes.feather')
+    dataset = dataset_labels_from_pandas(dataset, label_df)
+    #
+    dataset = dataset.cache()
 
     tokenizer = tokenization.FullTokenizer(
         vocab_file='pre-trained/uncased_L-12_H-768_A-12/vocab.txt', do_lower_case=True)
     dataset = add_masking(dataset, tokenizer=tokenizer)
 
-    label_df = pd.read_feather('dat/PeerRead/proc/arxiv-all-multi-treat-and-missing-outcomes.feather')
-    dataset = dataset_labels_from_pandas(dataset, label_df)
-
     dataset.batch(32)
     dataset.shuffle(100)
 
+    dit = dataset.take(100000)
+    s = next(iter(dit))
     t0 = time.time()
-    dit = dataset.take(1000)
     for samp in dit:
         s = samp
     t1 = time.time()

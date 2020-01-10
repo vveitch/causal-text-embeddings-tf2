@@ -317,6 +317,7 @@ def classifier_model(bert_config,
         shape=(max_seq_length,), dtype=tf.int32, name='input_mask')
     input_type_ids = tf.keras.layers.Input(
         shape=(max_seq_length,), dtype=tf.int32, name='input_type_ids')
+
     if hub_module_url:
         bert_model = hub.KerasLayer(hub_module_url, trainable=True)
         pooled_output, _ = bert_model([input_word_ids, input_mask, input_type_ids])
