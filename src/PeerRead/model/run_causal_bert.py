@@ -109,7 +109,6 @@ flags.DEFINE_string("prediction_file", "../output/predictions.tsv", "path where 
 FLAGS = flags.FLAGS
 
 
-@tf.function
 def _keras_format(features, labels):
     # features, labels = sample
     y = labels['outcome']

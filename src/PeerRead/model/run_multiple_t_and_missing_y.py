@@ -93,7 +93,6 @@ FLAGS = flags.FLAGS
 
 def make_hydra_keras_format(num_treatments, missing_outcomes=False):
     if not missing_outcomes:
-        @tf.function
         def _hydra_keras_format(features, labels):
             y = labels['outcome']
             t = tf.cast(labels['treatment'], tf.float32)
@@ -106,7 +105,6 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
             return features, labels, sample_weights
 
     elif missing_outcomes:
-        @tf.function
         def _hydra_keras_format(features, labels):
             # construct the label dictionary
             y = tf.cast(labels['outcome'], tf.int32)
@@ -283,6 +281,10 @@ def main(_):
         for treat in range(num_treatments):
             losses[f"q{treat}"] = 'binary_crossentropy'
             loss_weights[f"q{treat}"] = 0.1
+
+        latest_checkpoint = tf.train.latest_checkpoint(FLAGS.model_dir)
+        if latest_checkpoint:
+            hydra_model.load_weights(latest_checkpoint)
 
         hydra_model.compile(optimizer=optimizer,
                             loss=losses,
