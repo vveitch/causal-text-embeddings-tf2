@@ -81,7 +81,6 @@ def psi_very_naive(t, y):
 
 
 def att_estimates(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05, deps=0.0001):
-
     very_naive = psi_very_naive(t, y)
     q_only = psi_q_only(q_t0, q_t1, g, t, y, prob_t, truncate_level)
     plugin = psi_plugin(q_t0, q_t1, g, t, y, prob_t, truncate_level)
@@ -144,6 +143,7 @@ def one_step_tmle(q_t0, q_t1, g, t, y, truncate_level=0.05, deps=0.001):
     :return:
     """
     prob_t = np.mean(t)
+
     def _psi(q0, q1, g):
         return np.mean(g * (q1 - q0)) / prob_t
 
@@ -154,7 +154,6 @@ def one_step_tmle(q_t0, q_t1, g, t, y, truncate_level=0.05, deps=0.001):
     q0_old = q_t0
     q1_old = q_t1
     g_old = g
-
 
     # determine whether epsilon should go up or down
     # translated blindly from line 299 of https://github.com/cran/tmle/blob/master/R/tmle.R
@@ -256,6 +255,7 @@ def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, deps=0.001):
     """
 
     prob_t = t.mean()
+
     def _psi(q0, q1, g):
         return np.mean((q1 - q0) * g) / prob_t
 
@@ -309,5 +309,7 @@ def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, deps=0.001):
         else:
             if eps == 0.:
                 print("Warning: no update occurred (is deps too big?)")
-            ic = ((t - (1 - t) * g / (1 - g)) * deltaTerm * (y - q) + t * (q1 - q0 - _psi(q0, q1, g))) / q
+            q_old = (1 - t) * q0_old + t * q1_old
+            ic = ((t - (1 - t) * g_old / (1 - g_old)) * deltaTerm * (y - q_old)
+                  + t * (q1 - q0 - _psi(q0_old, q1_old, g_old))) / prob_t
             return _psi(q0_old, q1_old, g_old), ic
