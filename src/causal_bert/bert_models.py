@@ -76,11 +76,11 @@ def get_hydra_heads(binary_outcome: bool, num_treatments: int, missing_outcomes:
             q.append(tf.keras.layers.Dense(1, activation=activation, name=f"q{treat}")(qz))
 
         if not missing_outcomes:
-            g = tf.keras.layers.Dense(num_treatments, activation='sigmoid', name='g')(z)
+            g = tf.keras.layers.Dense(num_treatments, activation='softmax', name='g')(z)
             return g, q
         else:
-            g0 = tf.keras.layers.Dense(num_treatments, activation='sigmoid', name='g0')(z)
-            g1 = tf.keras.layers.Dense(num_treatments, activation='sigmoid', name='g1')(z)
+            g0 = tf.keras.layers.Dense(num_treatments, activation='softmax', name='g0')(z)
+            g1 = tf.keras.layers.Dense(num_treatments, activation='softmax', name='g1')(z)
             m = tf.keras.layers.Dense(1, activation='sigmoid', name='y_is_obs')(z)
             return g0, g1, m, q
 

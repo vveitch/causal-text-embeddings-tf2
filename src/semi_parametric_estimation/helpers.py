@@ -20,13 +20,31 @@ def calibrate_g(g, t):
     return calibrated_g
 
 
-def truncate_by_g(attribute, g, level=0.1):
-    keep_these = np.logical_and(g >= level, g <= 1. - level)
+def remove_by_value(input, lb=-np.inf, ub=np.inf):
+    """
+    removes any value from input that is outside lb, ub
 
-    return attribute[keep_these]
+    (returns arrays of reduced size)
+
+    Args:
+        input: array or list of arrays
+        lb: lower bound, scalar or broadcastable to input
+        ub: upper bound, scalar or broadcastable to input
+
+    Returns: input truncated
+
+    """
+    def remove_one(one_in):
+        one_in = one_in.copy()
+        include = np.logical_and(one_in > lb, one_in < ub)
+        return one_in[include]
+    if type(input) is list:
+        return [remove_one(one_in) for one_in in input]
+    else:
+        return remove_one(input)
 
 
-def truncate_by_value(input, lb, ub):
+def truncate_by_value(input, lb=-np.inf, ub=np.inf):
     """
     truncate input to lie in [lb, ub]
 
@@ -49,28 +67,13 @@ def truncate_by_value(input, lb, ub):
         return bound_one(input)
 
 
-
-def truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level=0.05):
-    """
-    Helper function to clean up nuisance parameter estimates.
-
-    """
-
-    orig_g = np.copy(g)
-
-    q_t0 = truncate_by_g(np.copy(q_t0), orig_g, truncate_level)
-    q_t1 = truncate_by_g(np.copy(q_t1), orig_g, truncate_level)
-    g = truncate_by_g(np.copy(g), orig_g, truncate_level)
-    t = truncate_by_g(np.copy(t), orig_g, truncate_level)
-    y = truncate_by_g(np.copy(y), orig_g, truncate_level)
-
-    return q_t0, q_t1, g, t, y
+def cross_entropy(y, p, weights=1):
+    per_example_loss = y * np.log(p) + (1. - y) * np.log(1. - p)
+    per_example_loss = weights*per_example_loss
+    return -np.mean(per_example_loss)
 
 
-def cross_entropy(y, p):
-    return -np.mean((y * np.log(p) + (1. - y) * np.log(1. - p)))
-
-
-def mse(x, y, weights=None):
-    per_example_loss = weights * np.square(x - y) if weights else np.square(x - y)
+def mse(x, y, weights=1):
+    per_example_loss = np.square(x - y) if weights else np.square(x - y)
+    per_example_loss = weights * per_example_loss
     return np.mean(per_example_loss)

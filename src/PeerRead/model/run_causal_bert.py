@@ -144,7 +144,11 @@ def make_dataset(is_training: bool, do_masking=False):
     batch_size = FLAGS.train_batch_size if is_training else FLAGS.eval_batch_size
 
     dataset = train_input_fn(params={'batch_size': batch_size})
-    dataset = dataset.map(_keras_format)
+
+    # format expected by Keras for training
+    if is_training:
+        dataset = dataset.map(_keras_format)
+
     return dataset
 
 

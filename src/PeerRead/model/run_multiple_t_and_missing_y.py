@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import os
 import pandas as pd
+import numpy as np
 
 from absl import app
 from absl import flags
@@ -202,7 +203,7 @@ def make_hydra_metrics(num_treatments, missing_outcomes=False):
 
 def main(_):
     # Users should always run this script under TF 2.x
-    assert tf.version.VERSION.startswith('2.')
+    assert tf.version.VERSION.startswith('2.1')
 
     # with tf.io.gfile.GFile(FLAGS.input_meta_data_path, 'rb') as reader:
     #     input_meta_data = json.loads(reader.read().decode('utf-8'))
