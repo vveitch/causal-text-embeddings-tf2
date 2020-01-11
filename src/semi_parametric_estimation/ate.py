@@ -2,7 +2,7 @@ import numpy as np
 from scipy.special import logit, expit
 from scipy.optimize import minimize
 
-from .helpers import truncate_by_g, mse, cross_entropy, truncate_all_by_g
+from .helpers import mse, cross_entropy
 from .att import att_estimates
 from .att import tmle_missing_outcomes as att_missing_outcomes
 

@@ -2,7 +2,7 @@ import numpy as np
 from scipy.special import logit, expit
 from scipy.optimize import minimize
 
-from .helpers import truncate_all_by_g, cross_entropy, mse
+from .helpers import cross_entropy, mse
 
 
 def _perturbed_model(q_t0, q_t1, g, t, q, eps):
@@ -73,7 +73,7 @@ def unadjusted(t, y):
     return y[t == 1].mean() - y[t == 0].mean()
 
 
-def _make_one_step_tmle_helpers(prob_t, deps):
+def _make_one_step_tmle_helpers(prob_t, cross_ent_outcome=False, deps=0.001):
     def _psi(q0, q1, g):
         return np.mean((q1 - q0) * g) / prob_t
 
@@ -81,8 +81,10 @@ def _make_one_step_tmle_helpers(prob_t, deps):
         h1 = t / prob_t - (1 - t) * g / (prob_t * (1 - g))
 
         full_q = (1.0 - t) * q_t0 + t * q_t1
-        perturbed_q = full_q - deps * h1
-        # perturbed_q= expit(logit(full_q) - deps*h1)
+        if cross_ent_outcome:
+            perturbed_q = expit(logit(full_q) - deps * h1)
+        else:
+            perturbed_q = full_q - deps * h1
         return perturbed_q
 
     def _perturb_g(q_t0, q_t1, g):
@@ -103,27 +105,31 @@ def _make_one_step_tmle_helpers(prob_t, deps):
 
     def _loss(q, g, y, t):
         # compute the new loss
-        q_loss = mse(y, q)
+        q_loss = cross_entropy(y, q) if cross_ent_outcome else mse(y, q)
         g_loss = cross_entropy(t, g)
         return q_loss + g_loss
 
     return _perturb_g_and_q, _loss
 
 
-def one_step_tmle(q_t0, q_t1, g, t, y, deps=0.001):
+def one_step_tmle(q_t0, q_t1, g, t, y, cross_ent_outcome=False, deps=0.001):
     """
     Computes the tmle for the ATT (equivalently: direct effect)
 
     1-step TMLE ala https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4912007/"
 
-    :param q_t0:
-    :param q_t1:
-    :param g:
-    :param t:
-    :param y:
-    :param truncate_level:
-    :param deps:
-    :return:
+    Args:
+        q_t0: E[Y | T=0, x]
+        q_t1: E[Y | T=1, x]
+        g: P(T=1 | x)
+        t: treatment assignments
+        y: outcomes
+        cross_ent_outcome: if true, use cross-entropy loss for outcome perturbation (assumes input is binary or scaled
+            to lie in [0,1]. This is the canonical TMLE approach)
+        deps: step size for TMLE recursion. Smaller is better, but takes longer.
+
+    Returns: att estimate, and influence curve of each data point
+
     """
     prob_t = np.mean(t)
 
@@ -144,7 +150,7 @@ def one_step_tmle(q_t0, q_t1, g, t, y, deps=0.001):
     if deriv > 0:
         deps = -deps
 
-    _perturb_g_and_q, _loss = _make_one_step_tmle_helpers(prob_t, deps)
+    _perturb_g_and_q, _loss = _make_one_step_tmle_helpers(prob_t, cross_ent_outcome, deps)
 
     # run until loss starts going up
     # old_loss = np.inf  # this is the thing used by Rose' implementation
@@ -171,7 +177,10 @@ def one_step_tmle(q_t0, q_t1, g, t, y, deps=0.001):
         if new_loss > old_loss:
             if eps == 0.:
                 print("Warning: no update occurred (is deps too big?)")
-            return _psi(q0_old, q1_old, g_old)
+            q_old = (1 - t) * q0_old + t * q1_old
+            ic = ((t - (1 - t) * g_old / (1 - g_old)) * (y - q_old)
+                  + t * (q1_old - q0_old - _psi(q0_old, q1_old, g_old))) / prob_t
+            return _psi(q0_old, q1_old, g_old), ic
         else:
             eps += deps
 
@@ -186,15 +195,15 @@ def _make_tmle_missing_outcomes_helpers(prob_t, cross_ent_outcome=False, deps=0.
     def _psi(q0, q1, g):
         return np.mean((q1 - q0) * g) / prob_t
 
-    def _perturb_q(q_t0, q_t1, g, t, delta, pd0, pd1):
+    def _perturb_q(q0, q1, g, t, delta, pd0, pd1):
         h0 = - g / (1 - g) / pd0
         h1 = 1 / pd1
         ht = delta * (t * h1 + (1 - t) * h0)
 
-        q = (1 - t) * q_t0 + t * q_t1
+        q = (1 - t) * q0 + t * q1
 
         if cross_ent_outcome:
-            perturbed_q = expit(logit(q) - deps*ht)
+            perturbed_q = expit(logit(q) - deps * ht)
         else:
             perturbed_q = q - deps * ht
         return perturbed_q
@@ -229,18 +238,18 @@ def _make_tmle_missing_outcomes_helpers(prob_t, cross_ent_outcome=False, deps=0.
     return _perturb_g_and_q, _loss
 
 
-def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, cross_ent_outcome = False, deps=0.001):
+def tmle_missing_outcomes(q0, q1, g0, g1, p_delta, t, y, delta, cross_ent_outcome=False, deps=0.001):
     """
 
     Args:
-        y: outcomes
-        t: treatment assignments
-        delta: missingness indicator for outcome; 1=present, 0=missing
         q0: E[Y | T=0, x, delta = 1]
         q1: E[Y | T=1, x, delta = 1]
         g0: P(T=1 | x, delta = 0)
         g1: P(T=1 | x, delta = 1)
         p_delta: P(delta = 1 | x)
+        t: treatment assignments
+        y: outcomes
+        delta: missingness indicator for outcome; 1=present, 0=missing
         cross_ent_outcome: if true, use cross-entropy loss for outcome perturbation (assumes input is binary or scaled
             to lie in [0,1]. This is the canonical TMLE approach)
         deps: step size for TMLE recursion. Smaller is better, but takes longer.
@@ -251,8 +260,8 @@ def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, cross_ent_outcom
 
     prob_t = t.mean()
 
-    def _psi(q0, q1, g):
-        return np.mean((q1 - q0) * g) / prob_t
+    def _psi(_q0, _q1, _g):
+        return np.mean((_q1 - _q0) * _g) / prob_t
 
     # these are inputs to Rose's code
     g = g0 * (1 - p_delta) + g1 * p_delta  # P(T=1 | x)
@@ -303,7 +312,7 @@ def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, cross_ent_outcom
                 print("Warning: no update occurred (is deps too big?)")
             q_old = (1 - t) * q0_old + t * q1_old
             ic = ((t - (1 - t) * g_old / (1 - g_old)) * deltaTerm * (y - q_old)
-                  + t * (q1 - q0 - _psi(q0_old, q1_old, g_old))) / prob_t
+                  + t * (q1_old - q0_old - _psi(q0_old, q1_old, g_old))) / prob_t
             return _psi(q0_old, q1_old, g_old), ic
 
 
@@ -312,9 +321,10 @@ def att_estimates(q_t0, q_t1, g, t, y, prob_t, deps=0.0001):
     q_only_est = q_only(q_t0, q_t1, t)
     plugin_est = plugin(q_t0, q_t1, g, prob_t)
     aiptw_est = aiptw(q_t0, g, t, y, prob_t)
-    os_tmle_est = one_step_tmle(q_t0, q_t1, g, t, y, deps)
+    tmle_mse_est = one_step_tmle(q_t0, q_t1, g, t, y, cross_ent_outcome=False, deps=deps)
+    tmle_ce_est = one_step_tmle(q_t0, q_t1, g, t, y, cross_ent_outcome=True, deps=deps)
 
     estimates = {'unadjusted_est': unadjusted_est, 'q_only': q_only_est, 'plugin': plugin_est,
-                 'one_step_tmle': os_tmle_est, 'aiptw': aiptw_est}
+                 'tmle_mse': tmle_mse_est, 'tmle_ce': tmle_ce_est, 'aiptw': aiptw_est}
 
     return estimates
