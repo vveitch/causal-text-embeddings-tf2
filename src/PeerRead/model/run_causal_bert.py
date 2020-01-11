@@ -30,9 +30,10 @@ import tensorflow as tf
 # pylint: disable=g-import-not-at-top,redefined-outer-name,reimported
 from tf_official.nlp import bert_modeling as modeling, optimization
 # from nlp import bert_models
-from tf_official.nlp.bert import tokenization, common_flags, model_saving_utils
+from tf_official.nlp.bert import tokenization, common_flags
 from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
+from causal_bert.data_utils import dataset_to_pandas_df
 
 from PeerRead.dataset.dataset import make_dataset_fn_from_file, make_real_labeler
 
@@ -162,16 +163,16 @@ def make_dragonnet_metrics():
     NAMES = ['true_positive', 'false_positive', 'true_negative', 'false_negative',
              'binary_accuracy', 'precision', 'recall', 'auc']
 
-    g_metrics = [m(name='g/' + n) for m, n in zip(METRICS, NAMES)]
-    q0_metrics = [m(name='q0/' + n) for m, n in zip(METRICS, NAMES)]
-    q1_metrics = [m(name='q1/' + n) for m, n in zip(METRICS, NAMES)]
+    g_metrics = [m(name='/' + n) for m, n in zip(METRICS, NAMES)]
+    q0_metrics = [m(name='/' + n) for m, n in zip(METRICS, NAMES)]
+    q1_metrics = [m(name='/' + n) for m, n in zip(METRICS, NAMES)]
 
     return {'g': g_metrics, 'q0': q0_metrics, 'q1': q1_metrics}
 
 
 def main(_):
     # Users should always run this script under TF 2.x
-    assert tf.version.VERSION.startswith('2.')
+    assert tf.version.VERSION.startswith('2.1')
 
     # with tf.io.gfile.GFile(FLAGS.input_meta_data_path, 'rb') as reader:
     #     input_meta_data = json.loads(reader.read().decode('utf-8'))
@@ -231,12 +232,15 @@ def main(_):
             checkpoint = tf.train.Checkpoint(model=core_model)
             checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
+        latest_checkpoint = tf.train.latest_checkpoint(FLAGS.model_dir)
+        if latest_checkpoint:
+            dragon_model.load_weights(latest_checkpoint)
+
         dragon_model.compile(optimizer=optimizer,
                              loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy',
                                    'q1': 'binary_crossentropy'},
-                             loss_weights={'g': 0.8, 'q0': 0.1, 'q1': 0.1},
+                             loss_weights={'g': 1.0, 'q0': 0.1, 'q1': 0.1},
                              weighted_metrics=make_dragonnet_metrics())
-
 
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
@@ -274,23 +278,21 @@ def main(_):
     checkpoint.restore(saved_path).assert_existing_objects_matched()
     dragon_model.compile()
 
-    with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
-        attribute_names = ['in_test',
-                           'treatment_probability',
-                           'expected_outcome_st_treatment', 'expected_outcome_st_no_treatment',
-                           'outcome', 'treatment',
-                           'index']
-        header = "\t".join(
-            attribute_name for attribute_name in attribute_names) + "\n"
-        writer.write(header)
+    outputs = dragon_model.predict(x=eval_data)
 
-        for f, l in eval_data:
-            g_pred, q0_pred, q1_pred = dragon_model.predict(f)
-            attributes = [l['in_test'].numpy(),
-                          g_pred, q1_pred, q0_pred,
-                          l['outcome'].numpy(), l['treatment'].numpy(), l['index'].numpy()]
-            at_df = pd.DataFrame(attributes).T
-            writer.write(at_df.to_csv(sep="\t", header=False))
+    out_dict = {}
+    out_dict['g'] = outputs[0].squeeze()
+    out_dict['q0'] = outputs[1].squeeze()
+    out_dict['q1'] = outputs[2].squeeze()
+
+    predictions = pd.DataFrame(out_dict)
+
+    label_dataset = eval_data.map(lambda f, l: l)
+    data_df = dataset_to_pandas_df(label_dataset)
+
+    outs = data_df.join(predictions)
+    with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
+        writer.write(outs.to_csv(sep="\t"))
 
 
 if __name__ == '__main__':
