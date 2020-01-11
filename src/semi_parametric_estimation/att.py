@@ -24,14 +24,12 @@ def _perturbed_model(q_t0, q_t1, g, t, q, eps):
     return perturbed_q, perturbed_g
 
 
-def psi_tmle(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
+def tmle(q_t0, q_t1, g, t, y, prob_t):
     """
     Near canonical van der Laan TMLE, except we use a
     1 dimension epsilon shared between the Q and g update models
 
     """
-
-    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
 
     def _perturbed_loss(eps):
         pert_q, pert_g = _perturbed_model(q_t0, q_t1, g, t, prob_t, eps)
@@ -50,50 +48,35 @@ def psi_tmle(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
     return psi_tmle
 
 
-def psi_q_only(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
-    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
-
+def q_only(q_t0, q_t1, t):
     ite_t = (q_t1 - q_t0)[t == 1]
     estimate = ite_t.mean()
     return estimate
 
 
-def psi_plugin(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
-    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
-
+def plugin(q_t0, q_t1, g, prob_t):
     ite_t = g * (q_t1 - q_t0) / prob_t
     estimate = ite_t.mean()
     return estimate
 
 
-def psi_aiptw(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05):
+def aiptw(q_t0, g, t, y, prob_t):
     # the robust ATT estimator described in eqn 3.9 of
     # https://www.econstor.eu/bitstream/10419/149795/1/869216953.pdf
 
-    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
     estimate = (t * (y - q_t0) - (1 - t) * (g / (1 - g)) * (y - q_t0)).mean() / prob_t
 
     return estimate
 
 
-def psi_very_naive(t, y):
+def unadjusted(t, y):
     return y[t == 1].mean() - y[t == 0].mean()
 
 
-def att_estimates(q_t0, q_t1, g, t, y, prob_t, truncate_level=0.05, deps=0.0001):
-    very_naive = psi_very_naive(t, y)
-    q_only = psi_q_only(q_t0, q_t1, g, t, y, prob_t, truncate_level)
-    plugin = psi_plugin(q_t0, q_t1, g, t, y, prob_t, truncate_level)
-    aiptw = psi_aiptw(q_t0, q_t1, g, t, y, prob_t, truncate_level)
-    os_tmle = one_step_tmle(q_t0, q_t1, g, t, y, truncate_level)  # note different signature
-
-    estimates = {'very_naive': very_naive, 'q_only': q_only, 'plugin': plugin, 'one_step_tmle': os_tmle,
-                 'aiptw': aiptw}
-
-    return estimates
-
-
 def _make_one_step_tmle_helpers(prob_t, deps):
+    def _psi(q0, q1, g):
+        return np.mean((q1 - q0) * g) / prob_t
+
     def _perturb_q(q_t0, q_t1, g, t):
         h1 = t / prob_t - (1 - t) * g / (prob_t * (1 - g))
 
@@ -127,7 +110,7 @@ def _make_one_step_tmle_helpers(prob_t, deps):
     return _perturb_g_and_q, _loss
 
 
-def one_step_tmle(q_t0, q_t1, g, t, y, truncate_level=0.05, deps=0.001):
+def one_step_tmle(q_t0, q_t1, g, t, y, deps=0.001):
     """
     Computes the tmle for the ATT (equivalently: direct effect)
 
@@ -146,8 +129,6 @@ def one_step_tmle(q_t0, q_t1, g, t, y, truncate_level=0.05, deps=0.001):
 
     def _psi(q0, q1, g):
         return np.mean(g * (q1 - q0)) / prob_t
-
-    q_t0, q_t1, g, t, y = truncate_all_by_g(q_t0, q_t1, g, t, y, truncate_level)
 
     eps = 0.0
 
@@ -201,7 +182,10 @@ def one_step_tmle(q_t0, q_t1, g, t, y, truncate_level=0.05, deps=0.001):
             old_loss = new_loss
 
 
-def _make_one_step_tmle_missing_ys_helpers(prob_t, deps=0.001):
+def _make_tmle_missing_outcomes_helpers(prob_t, deps=0.001):
+    def _psi(q0, q1, g):
+        return np.mean((q1 - q0) * g) / prob_t
+
     def _perturb_q(q_t0, q_t1, g, t, delta, pd0, pd1):
         h0 = - g / (1 - g) / pd0
         h1 = 1 / pd1
@@ -259,9 +243,6 @@ def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, deps=0.001):
     def _psi(q0, q1, g):
         return np.mean((q1 - q0) * g) / prob_t
 
-    # any bounding or truncation
-    pass
-
     # these are inputs to Rose's code
     g = g0 * (1 - p_delta) + g1 * p_delta  # P(T=1 | x)
     pd1 = g1 * p_delta / g  # P(delta = 1 | T = 1, x)
@@ -286,7 +267,7 @@ def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, deps=0.001):
         deps = -deps
 
     # get helper functions
-    _perturb_g_and_q, _loss = _make_one_step_tmle_missing_ys_helpers(prob_t, deps)
+    _perturb_g_and_q, _loss = _make_tmle_missing_outcomes_helpers(prob_t, deps)
 
     # run until loss starts going up
     # old_loss = np.inf  # this is the thing used by Rose' implementation
@@ -313,3 +294,16 @@ def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, deps=0.001):
             ic = ((t - (1 - t) * g_old / (1 - g_old)) * deltaTerm * (y - q_old)
                   + t * (q1 - q0 - _psi(q0_old, q1_old, g_old))) / prob_t
             return _psi(q0_old, q1_old, g_old), ic
+
+
+def att_estimates(q_t0, q_t1, g, t, y, prob_t, deps=0.0001):
+    unadjusted_est = unadjusted(t, y)
+    q_only_est = q_only(q_t0, q_t1, t)
+    plugin_est = plugin(q_t0, q_t1, g, prob_t)
+    aiptw_est = aiptw(q_t0, g, t, y, prob_t)
+    os_tmle_est = one_step_tmle(q_t0, q_t1, g, t, y, deps)
+
+    estimates = {'unadjusted_est': unadjusted_est, 'q_only': q_only_est, 'plugin': plugin_est,
+                 'one_step_tmle': os_tmle_est, 'aiptw': aiptw_est}
+
+    return estimates
