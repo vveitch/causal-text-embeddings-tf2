@@ -26,8 +26,8 @@ from absl import flags
 import tensorflow as tf
 
 # pylint: disable=g-import-not-at-top,redefined-outer-name,reimported
-from tf_official.nlp import bert_modeling as modeling, optimization
-from tf_official.nlp.bert import tokenization, common_flags, model_saving_utils
+from tf_official.nlp import bert_modeling as modeling
+from tf_official.nlp.bert import tokenization, common_flags
 from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
 
