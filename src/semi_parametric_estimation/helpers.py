@@ -67,10 +67,13 @@ def truncate_by_value(input, lb=-np.inf, ub=np.inf):
         return bound_one(input)
 
 
-def cross_entropy(y, p):
-    return -np.mean((y * np.log(p) + (1. - y) * np.log(1. - p)))
+def cross_entropy(y, p, weights=1):
+    per_example_loss = y * np.log(p) + (1. - y) * np.log(1. - p)
+    per_example_loss = weights*per_example_loss
+    return -np.mean(per_example_loss)
 
 
-def mse(x, y, weights=None):
-    per_example_loss = weights * np.square(x - y) if weights else np.square(x - y)
+def mse(x, y, weights=1):
+    per_example_loss = np.square(x - y) if weights else np.square(x - y)
+    per_example_loss = weights * per_example_loss
     return np.mean(per_example_loss)

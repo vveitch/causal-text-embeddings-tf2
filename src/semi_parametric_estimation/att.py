@@ -182,7 +182,7 @@ def one_step_tmle(q_t0, q_t1, g, t, y, deps=0.001):
             old_loss = new_loss
 
 
-def _make_tmle_missing_outcomes_helpers(prob_t, deps=0.001):
+def _make_tmle_missing_outcomes_helpers(prob_t, cross_ent_outcome=False, deps=0.001):
     def _psi(q0, q1, g):
         return np.mean((q1 - q0) * g) / prob_t
 
@@ -192,8 +192,11 @@ def _make_tmle_missing_outcomes_helpers(prob_t, deps=0.001):
         ht = delta * (t * h1 + (1 - t) * h0)
 
         q = (1 - t) * q_t0 + t * q_t1
-        perturbed_q = q - deps * ht
-        # q= expit(logit(q) - deps*ht)
+
+        if cross_ent_outcome:
+            perturbed_q = expit(logit(q) - deps*ht)
+        else:
+            perturbed_q = q - deps * ht
         return perturbed_q
 
     def _perturb_g(q_t0, q_t1, g):
@@ -214,14 +217,19 @@ def _make_tmle_missing_outcomes_helpers(prob_t, deps=0.001):
 
     def _loss(q, g, y, t, deltaTerm):
         # compute the new loss
-        q_loss = mse(y, q, weights=deltaTerm)
         g_loss = cross_entropy(t, g)
+
+        if cross_ent_outcome:
+            q_loss = cross_entropy(y, q, weights=deltaTerm)
+        else:
+            q_loss = mse(y, q, weights=deltaTerm)
+
         return q_loss + g_loss
 
     return _perturb_g_and_q, _loss
 
 
-def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, deps=0.001):
+def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, cross_ent_outcome = False, deps=0.001):
     """
 
     Args:
@@ -233,6 +241,9 @@ def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, deps=0.001):
         g0: P(T=1 | x, delta = 0)
         g1: P(T=1 | x, delta = 1)
         p_delta: P(delta = 1 | x)
+        cross_ent_outcome: if true, use cross-entropy loss for outcome perturbation (assumes input is binary or scaled
+            to lie in [0,1]. This is the canonical TMLE approach)
+        deps: step size for TMLE recursion. Smaller is better, but takes longer.
 
     Returns: psi_hat, and influence curve of each data point
 
@@ -267,7 +278,7 @@ def tmle_missing_outcomes(y, t, delta, q0, q1, g0, g1, p_delta, deps=0.001):
         deps = -deps
 
     # get helper functions
-    _perturb_g_and_q, _loss = _make_tmle_missing_outcomes_helpers(prob_t, deps)
+    _perturb_g_and_q, _loss = _make_tmle_missing_outcomes_helpers(prob_t, cross_ent_outcome, deps)
 
     # run until loss starts going up
     # old_loss = np.inf  # this is the thing used by Rose' implementation
