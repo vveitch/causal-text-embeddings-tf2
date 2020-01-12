@@ -3,10 +3,9 @@ import pandas as pd
 
 from semi_parametric_estimation.att import tmle_missing_outcomes
 
-if __name__ == '__main__':
-    df = pd.read_csv('out/predictions.tsv', sep='\t')
-    treatment = 9
-    control = 10
+
+def att_from_output_tsv(filename, treatment, control):
+    df = pd.read_csv(filename, sep='\t')
 
     reduced_df = df[np.logical_or(df.treatment == treatment, df.treatment == control)]
 
@@ -40,4 +39,18 @@ if __name__ == '__main__':
 
     nuisance_dict = reduced_df.to_dict('series')
 
-    att, IC = tmle_missing_outcomes(**nuisance_dict, cross_ent_outcome=False, deps=0.0001)
+    att, IC = tmle_missing_outcomes(**nuisance_dict, cross_ent_outcome=True, deps=0.0001)
+
+    att_std = np.std(IC) / np.sqrt(IC.shape[0])
+
+    return att, att_std
+
+
+if __name__ == '__main__':
+    filename = 'out/predictions.tsv'
+
+    treatment = 9
+    control = 10
+
+    att, att_std = att_from_output_tsv(filename, treatment, control)
+
