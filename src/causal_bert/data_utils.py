@@ -11,8 +11,6 @@ import time
 
 from tf_official.nlp.bert import tokenization
 
-MININT = -2147483648
-
 
 # Masking
 def _make_input_id_masker(tokenizer, seed,
@@ -28,6 +26,7 @@ def _make_input_id_masker(tokenizer, seed,
     """
     # (One of) Bert's unsupervised objectives is to mask some fraction of the input words and predict the masked words
     vocab = tokenizer.vocab
+
     @tf.function
     def _create_masked_lm_predictions(token_ids: tf.Tensor):
         """
@@ -192,7 +191,6 @@ def load_basic_bert_data(input_files_or_globs,
 
 
 def dataset_to_pandas_df(dataset):
-
     samp_dict = defaultdict(list)
 
     for sample in iter(dataset):
@@ -273,7 +271,8 @@ def _make_labeling_v2(label_df: pd.DataFrame, do_factorize=False):
     return labeling
 
 
-def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame, filter_labeled=True, do_factorize=False):
+def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame, filter_labeled=True,
+                               do_factorize=False):
     """
     Produce a tensorflow dataset with labels by merging a dataset without labels and pandas dataframe
 
@@ -284,9 +283,9 @@ def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame,
     prediction tasks
 
     Args:
-        dataset: tf.data.Dataset. Must yield a dictionary which has key 'index'
-        label_df: pd.DataFrame. The index should contain (a subset of) the values of 'index' in the tensorflow dataset.
-            Each column should either be categorical or numerical.
+        dataset: tf.data.Dataset. Must yield a dictionary which has key 'id'
+        label_df: pd.DataFrame. The dataframe should have an 'id' column that  contain (a subset of) the values of
+            'id' in the tensorflow dataset. Each column should either be integer (categorical) or float.
         filter_labeled: bool. If True, then any batch that has 1 or more examples missing labels is filtered
             WARNING: this may result in very slow performance for large batches if missing labels are common.
             consider applying batching after this function
@@ -307,6 +306,71 @@ def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame,
     return lab_dataset
 
 
+def make_test_train_splits(dataset: tf.data.Dataset, num_splits=10, dev_splits=None, test_splits=None):
+    """
+    Adapts tensorflow dataset to produce additional elements that indicate whether each datapoint is in train, dev,
+        or test
+
+    Args:
+        dataset: tf.data.Dataset. Must include 'many_split' as a label
+        num_splits: total number of splits
+        dev_splits: splits to use for development
+        test_splits: splits to use for testing
+
+    Returns:
+
+    """
+    if test_splits is None:
+        test_splits = []
+    if dev_splits is None:
+        dev_splits = []
+
+    if type(test_splits) == str:
+        test_splits = [int(split) for split in test_splits.split(',')]
+    if type(dev_splits) == str:
+        dev_splits = [int(split) for split in dev_splits.split(',')]
+
+    def _tf_scalar_a_in1d_b(a, b):
+        """
+        Tensorflow equivalent of np.in1d(a,b)
+        """
+        return tf.reduce_any(input_tensor=tf.equal(a, b))
+
+    def split_labels(features, labels, weights=None):
+        many_split = labels['many_split']
+        reduced_split = tf.math.floormod(many_split, num_splits)  # reduce the many splits to just num_splits
+
+        added_labels = {}
+        added_labels['in_dev'] = _tf_scalar_a_in1d_b(reduced_split, dev_splits)
+        added_labels['in_test'] = _tf_scalar_a_in1d_b(reduced_split, test_splits)
+        added_labels['in_train'] = tf.logical_not(tf.logical_or(added_labels['in_dev'], added_labels['in_test']))
+
+        added_labels = {k: tf.cast(v, tf.float32) for k, v in added_labels.items()}
+
+        if weights:
+            return features, {**labels, **added_labels}, weights
+        else:
+            return features, {**labels, **added_labels}
+
+    lab_dataset = dataset.map(
+        split_labels, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    return lab_dataset
+
+
+def filter_training(dataset: tf.data.Dataset, is_training=True):
+    def _train_filter(f, l, s=None):
+        return tf.reduce_all(tf.equal(l['in_train'], 1))
+
+    def _test_filter(f, l, s=None):
+        return tf.reduce_all(tf.equal(l['in_test'], 1))
+
+    if is_training:
+        return dataset.filter(_train_filter)
+    else:
+        return dataset.filter(_test_filter)
+
+
 def main():
     # label_df = pd.read_feather('dat/PeerRead/proc/arxiv-all-labels-only.feather')
 
@@ -314,12 +378,14 @@ def main():
                                    is_training=True)
 
     label_df = pd.read_feather('dat/PeerRead/proc/arxiv-all-multi-treat-and-missing-outcomes.feather')
+
     dataset = dataset_labels_from_pandas(dataset, label_df)
     #
     dataset = dataset.cache()
 
     tokenizer = tokenization.FullTokenizer(
         vocab_file='pre-trained/uncased_L-12_H-768_A-12/vocab.txt', do_lower_case=True)
+
     dataset = add_masking(dataset, tokenizer=tokenizer)
 
     dataset.batch(32)

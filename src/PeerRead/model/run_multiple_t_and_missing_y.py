@@ -32,7 +32,8 @@ from tf_official.nlp.bert import tokenization, common_flags
 from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
 
-from causal_bert.data_utils import load_basic_bert_data, dataset_labels_from_pandas, add_masking, dataset_to_pandas_df
+from causal_bert.data_utils import load_basic_bert_data, dataset_labels_from_pandas, add_masking, dataset_to_pandas_df, \
+    make_test_train_splits, filter_training
 
 common_flags.define_common_bert_flags()
 
@@ -131,8 +132,8 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
     return _hydra_keras_format
 
 
-def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, missing_outcomes=False, do_masking=False,
-                 input_pipeline_context=None):
+def make_dataset(tf_record_files: str, num_treatments: int, is_training: bool, is_eval=False, missing_outcomes=False,
+                 do_masking=False, input_pipeline_context=None):
     df_file = FLAGS.label_df_file
     dataset = load_basic_bert_data(tf_record_files, FLAGS.max_seq_length, is_training=is_training,
                                    input_pipeline_context=input_pipeline_context)
@@ -152,8 +153,8 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
         return f, l
 
     dataset = dataset.map(_standardize_label_naming, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-
-    dataset = dataset.cache()
+    dataset = make_test_train_splits(dataset, num_splits=FLAGS.num_splits, dev_splits=FLAGS.dev_splits,
+                                     test_splits=FLAGS.test_splits)
 
     if do_masking:
         tokenizer = tokenization.FullTokenizer(
@@ -161,6 +162,8 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
         dataset = add_masking(dataset, tokenizer=tokenizer)
 
     if is_training:
+        dataset = filter_training(dataset, is_training=not is_eval)
+
         # batching needs to happen before sample weights are created
         dataset = dataset.shuffle(25000)
         dataset = dataset.batch(FLAGS.train_batch_size, drop_remainder=True)
@@ -261,8 +264,16 @@ def main(_):
     with strategy.scope():
         train_data = make_dataset(tf_record_files=FLAGS.input_files,
                                   is_training=True,
-                                  num_treatments=num_treatments, missing_outcomes=missing_outcomes,
+                                  num_treatments=num_treatments,
+                                  missing_outcomes=missing_outcomes,
                                   do_masking=FLAGS.do_masking)
+        eval_data = make_dataset(tf_record_files=FLAGS.input_files,
+                                 is_training=True,
+                                 is_eval=True,
+                                 num_treatments=num_treatments,
+                                 missing_outcomes=missing_outcomes,
+                                 do_masking=FLAGS.do_masking)
+
         hydra_model, core_model = _get_hydra_model(FLAGS.do_masking)
         optimizer = hydra_model.optimizer
         print(hydra_model.summary())
@@ -300,10 +311,10 @@ def main(_):
 
         hydra_model.fit(
             x=train_data,
-            # validation_data=evaluation_dataset,
+            validation_data=eval_data,
             steps_per_epoch=steps_per_epoch,
             epochs=epochs,
-            # validation_steps=eval_steps,
+            validation_steps=256,
             callbacks=callbacks)
 
     # save a final model checkpoint (so we can restore weights into model w/o training idiosyncracies)
