@@ -102,15 +102,15 @@ def add_masking(dataset: tf.data.Dataset,
                 max_predictions_per_seq=20,
                 seed=0):
     """
-    Applies Bert style word-piece masking to input dataset, using the provided tokenizer and random seed
+    Applies Bert style word-piece masking to input dataset_, using the provided tokenizer and random seed
     Args:
-        dataset: dataset, should yield dictionary data that has key 'input_ids'
+        dataset: dataset_, should yield dictionary data that has key 'input_ids'
         tokenizer: bert tokenizer used for pre-processing
         masked_lm_prob: per-token masking probability
         max_predictions_per_seq: maximum allowed number of masks
         seed: random seed
 
-    Returns: tensorflow dataset
+    Returns: tensorflow dataset_
     """
     masker = _make_input_id_masker(tokenizer, seed,
                                    masked_lm_prob=masked_lm_prob, max_predictions_per_seq=max_predictions_per_seq)
@@ -154,7 +154,7 @@ def load_basic_bert_data(input_files_or_globs,
         input_files.extend(tf.io.gfile.glob(input_pattern))
     dataset = tf.data.Dataset.from_tensor_slices(input_files)
 
-    # dataset = tf.data.Dataset.list_files(input_files, shuffle=is_training)
+    # dataset_ = tf.data.Dataset.list_files(input_files, shuffle=is_training)
 
     if input_pipeline_context and input_pipeline_context.num_input_pipelines > 1:
         dataset = dataset.shard(input_pipeline_context.num_input_pipelines,
@@ -166,7 +166,7 @@ def load_basic_bert_data(input_files_or_globs,
         # training files to ensure that training data is well shuffled.
         dataset = dataset.shuffle(len(input_files))
 
-    # In parallel, create tf record dataset for each train files.
+    # In parallel, create tf record dataset_ for each train files.
     # cycle_length = 8 means that up to 8 files will be read and deserialized in
     # parallel. You may want to increase this number if you have a large number of
     # CPU cores.
@@ -191,9 +191,18 @@ def load_basic_bert_data(input_files_or_globs,
 
 
 def dataset_to_pandas_df(dataset):
+    def _collapse_to_features(f, l=None, w=None):
+        if l:
+            f = {**f, **l}
+        if w:
+            f = {**f, **w}
+        return f
+
+    dataset_ = dataset.map(_collapse_to_features)
+
     samp_dict = defaultdict(list)
 
-    for sample in iter(dataset):
+    for sample in iter(dataset_):
         for k, v in sample.items():
             samp_dict[k] += [v.numpy().squeeze()]
 
@@ -274,22 +283,22 @@ def _make_labeling_v2(label_df: pd.DataFrame, do_factorize=False):
 def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame, filter_labeled=True,
                                do_factorize=False):
     """
-    Produce a tensorflow dataset with labels by merging a dataset without labels and pandas dataframe
+    Produce a tensorflow dataset_ with labels by merging a dataset_ without labels and pandas dataframe
 
-    takes a tensorflow dataset that yields a dictionary (i.e., features only) where one key of that dictionary is 'id',
+    takes a tensorflow dataset_ that yields a dictionary (i.e., features only) where one key of that dictionary is 'id',
     and a pandas dataframe where one column is 'id', and the other columns are labels of the example w/ that id.
-    Returns a tensorflow dataset where examples include the labels.
+    Returns a tensorflow dataset_ where examples include the labels.
     Typical use case is when a model has complicated unsupervised pre-processing which may be used for many possible
     prediction tasks
 
     Args:
         dataset: tf.data.Dataset. Must yield a dictionary which has key 'id'
         label_df: pd.DataFrame. The dataframe should have an 'id' column that  contain (a subset of) the values of
-            'id' in the tensorflow dataset. Each column should either be integer (categorical) or float.
+            'id' in the tensorflow dataset_. Each column should either be integer (categorical) or float.
         filter_labeled: bool. If True, then any batch that has 1 or more examples missing labels is filtered
             WARNING: this may result in very slow performance for large batches if missing labels are common.
             consider applying batching after this function
-        cache: string. if present, dataset with labels will be cached to this file. If 'True', will be cached to memory
+        cache: string. if present, dataset_ with labels will be cached to this file. If 'True', will be cached to memory
         do_factorize: bool. If True, then all non-float columns will be factorized (NaNs get mapped to -1)
             It's probably best practice to do this manually and not use the automation
 
@@ -308,7 +317,7 @@ def dataset_labels_from_pandas(dataset: tf.data.Dataset, label_df: pd.DataFrame,
 
 def make_test_train_splits(dataset: tf.data.Dataset, num_splits=10, dev_splits=None, test_splits=None):
     """
-    Adapts tensorflow dataset to produce additional elements that indicate whether each datapoint is in train, dev,
+    Adapts tensorflow dataset_ to produce additional elements that indicate whether each datapoint is in train, dev,
         or test
 
     Args:

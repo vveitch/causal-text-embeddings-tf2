@@ -254,7 +254,7 @@ def train_squad(strategy,
 
 
 def predict_squad(strategy, input_meta_data):
-  """Makes predictions for a squad dataset."""
+  """Makes predictions for a squad dataset_."""
   bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
   doc_stride = input_meta_data['doc_stride']
   max_query_length = input_meta_data['max_query_length']

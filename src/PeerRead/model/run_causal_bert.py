@@ -303,7 +303,7 @@ def main(_):
     # make predictions and write to file
     # NOTE: theory suggests we should make predictions on heldout data ("cross fitting" or "sample splitting")
     # but our experiments showed best results by just reusing the data
-    # You can accomodate sample splitting by using the splitting arguments for the dataset creation
+    # You can accomodate sample splitting by using the splitting arguments for the dataset_ creation
 
     # create data and model w/o masking
     eval_data = make_dataset(is_training=False, do_masking=False)

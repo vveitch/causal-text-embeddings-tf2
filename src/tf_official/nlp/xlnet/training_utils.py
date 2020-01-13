@@ -90,7 +90,7 @@ def train(
       total_training_steps: Number of steps to train in total.
       steps_per_epoch: Number of steps to run per epoch. At the end of each
         epoch, model checkpoint will be saved and evaluation will be conducted
-        if evaluation dataset is provided.
+        if evaluation dataset_ is provided.
       steps_per_loop: Number of steps per graph-mode loop. In order to reduce
         communication in eager context, training logs are printed every
         steps_per_loop.
@@ -99,9 +99,9 @@ def train(
       eval_fn: A callback of evaluation function, that takes a keras.Model,
         current step and evaluation summary writer.
       metric_fn: A metrics function returns a Keras Metric object to record
-        evaluation result using evaluation dataset or with training dataset
+        evaluation result using evaluation dataset_ or with training dataset_
         after every epoch.
-      test_input_fn:  Function returns a evaluation dataset. If none, evaluation
+      test_input_fn:  Function returns a evaluation dataset_. If none, evaluation
         is skipped.
       init_checkpoint: Optional checkpoint to load to `sub_model` returned by
         `model_fn`.

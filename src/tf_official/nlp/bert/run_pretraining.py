@@ -54,11 +54,11 @@ FLAGS = flags.FLAGS
 
 def get_pretrain_input_data(input_file_pattern, seq_length,
                             max_predictions_per_seq, batch_size, strategy):
-    """Returns input dataset from input file string."""
+    """Returns input dataset_ from input file string."""
 
-    # When using TPU pods, we need to clone dataset across
-    # workers and need to pass in function that returns the dataset rather
-    # than passing dataset instance itself.
+    # When using TPU pods, we need to clone dataset_ across
+    # workers and need to pass in function that returns the dataset_ rather
+    # than passing dataset_ instance itself.
     use_dataset_fn = isinstance(strategy, tf.distribute.experimental.TPUStrategy)
     if use_dataset_fn:
         if batch_size % strategy.num_replicas_in_sync != 0:
@@ -68,7 +68,7 @@ def get_pretrain_input_data(input_file_pattern, seq_length,
 
         # As auto rebatching is not supported in
         # `experimental_distribute_datasets_from_function()` API, which is
-        # required when cloning dataset to multiple workers in eager mode,
+        # required when cloning dataset_ to multiple workers in eager mode,
         # we use per-replica batch size.
         batch_size = int(batch_size / strategy.num_replicas_in_sync)
 

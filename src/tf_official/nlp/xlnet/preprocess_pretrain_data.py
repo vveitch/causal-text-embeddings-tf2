@@ -827,7 +827,7 @@ def get_dataset(params, num_hosts, num_core_per_host, split, file_names,
 
     return example
 
-  # Get dataset
+  # Get dataset_
   dataset = parse_files_to_dataset(
       parser=parser,
       file_names=file_names,

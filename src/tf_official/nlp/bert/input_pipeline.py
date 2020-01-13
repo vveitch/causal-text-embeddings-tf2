@@ -40,7 +40,7 @@ def file_based_input_fn_builder(input_file, name_to_features):
     """Creates an `input_fn` closure to be passed for BERT custom training."""
 
     def input_fn():
-        """Returns dataset for training/evaluation."""
+        """Returns dataset_ for training/evaluation."""
         # For training, we want a lot of parallel reading and shuffling.
         # For eval, we want no shuffling and parallel reading doesn't matter.
         d = tf.data.TFRecordDataset(input_file)
@@ -64,7 +64,7 @@ def create_pretrain_dataset(file_paths,
                             batch_size,
                             is_training=True,
                             input_pipeline_context=None):
-    """Creates input dataset from (tf)records files for pretraining."""
+    """Creates input dataset_ from (tf)records files for pretraining."""
     name_to_features = {
         'input_ids':
             tf.io.FixedLenFeature([seq_length], tf.int64),
@@ -93,7 +93,7 @@ def create_pretrain_dataset(file_paths,
     # training files to ensure that training data is well shuffled.
     dataset = dataset.shuffle(len(file_paths))
 
-    # In parallel, create tf record dataset for each train files.
+    # In parallel, create tf record dataset_ for each train files.
     # cycle_length = 8 means that up to 8 files will be read and deserialized in
     # parallel. You may want to increase this number if you have a large number of
     # CPU cores.
@@ -138,7 +138,7 @@ def create_classifier_dataset(file_path,
                               batch_size,
                               is_training=True,
                               drop_remainder=True):
-    """Creates input dataset from (tf)records files for train/eval."""
+    """Creates input dataset_ from (tf)records files for train/eval."""
     name_to_features = {
         'input_ids': tf.io.FixedLenFeature([seq_length], tf.int64),
         'input_mask': tf.io.FixedLenFeature([seq_length], tf.int64),
@@ -170,7 +170,7 @@ def create_classifier_dataset(file_path,
 
 
 def create_squad_dataset(file_path, seq_length, batch_size, is_training=True):
-    """Creates input dataset from (tf)records files for train/eval."""
+    """Creates input dataset_ from (tf)records files for train/eval."""
     name_to_features = {
         'unique_ids': tf.io.FixedLenFeature([], tf.int64),
         'input_ids': tf.io.FixedLenFeature([seq_length], tf.int64),

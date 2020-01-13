@@ -147,7 +147,7 @@ class ScienceParse:
     figure_indices = [i for i, x in enumerate(content_words) if x == "Appendix"]
     return int(len(figure_indices) > 0)
 
-  # publishing a dataset / code
+  # publishing a dataset_ / code
   def get_contains_appendix(self):
     content_words = self.get_paper_content().split(" ")
     figure_indices = [i for i, x in enumerate(content_words) if x == "Appendix"]

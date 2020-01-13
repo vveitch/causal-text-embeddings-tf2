@@ -39,11 +39,11 @@ def _save_checkpoint(checkpoint, model_dir, checkpoint_prefix):
 
 
 def _get_input_iterator(input_fn, strategy):
-    """Returns distributed dataset iterator."""
+    """Returns distributed dataset_ iterator."""
 
     # When training with TPU pods, datasets needs to be cloned across
     # workers. Since Dataset instance cannot be cloned in eager mode, we instead
-    # pass callable that returns a dataset.
+    # pass callable that returns a dataset_.
     input_data = input_fn()
     if callable(input_data):
         iterator = iter(
@@ -115,17 +115,17 @@ def run_customized_training_loop(
         train_input_fn: Function that returns a tf.data.Dataset used for training.
         steps_per_epoch: Number of steps to run per epoch. At the end of each
           epoch, model checkpoint will be saved and evaluation will be conducted
-          if evaluation dataset is provided.
+          if evaluation dataset_ is provided.
         steps_per_loop: Number of steps per graph-mode loop. In order to reduce
           communication in eager context, training logs are printed every
           steps_per_loop.
         epochs: Number of epochs to train.
-        eval_input_fn: Function that returns evaluation dataset. If none,
+        eval_input_fn: Function that returns evaluation dataset_. If none,
           evaluation is skipped.
         eval_steps: Number of steps to run evaluation. Required if `eval_input_fn`
           is not none.
         metric_fn: A metrics function that returns a Keras Metric object to record
-          evaluation result using evaluation dataset or with training dataset
+          evaluation result using evaluation dataset_ or with training dataset_
           after every epoch.
         init_checkpoint: Optional checkpoint to load to `sub_model` returned by
           `model_fn`.
