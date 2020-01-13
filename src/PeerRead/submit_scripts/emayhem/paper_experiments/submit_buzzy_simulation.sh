@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-OUTPUT_DIR_BASE=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/PeerRead/buzzy-based-sim
+OUTPUT_DIR_BASE=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/PeerRead/buzzy-based-sim/
 mkdir -p ${OUTPUT_DIR_BASE}
 
 export NUM_SPLITS=10

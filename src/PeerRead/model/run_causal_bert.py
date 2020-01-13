@@ -130,7 +130,7 @@ def make_dataset(is_training: bool, do_masking=False):
 
     elif FLAGS.simulated == 'attribute':
         labeler = make_buzzy_based_simulated_labeler(FLAGS.beta0, FLAGS.beta1, FLAGS.gamma, FLAGS.simulation_mode,
-                                                     seed=FLAGS.seed)
+                                                     seed=0)
     elif FLAGS.simulated == 'propensity':
         model_predictions = pd.read_csv(FLAGS.base_propensities_path, '\t')
 
@@ -144,7 +144,7 @@ def make_dataset(is_training: bool, do_masking=False):
                                                           example_indices=example_indices,
                                                           exogeneous_con=FLAGS.exogenous_confounding,
                                                           setting=FLAGS.simulation_mode,
-                                                          seed=FLAGS.seed)
+                                                          seed=0)
 
     else:
         Exception("simulated flag not recognized")
@@ -200,6 +200,7 @@ def make_dragonnet_metrics():
 def main(_):
     # Users should always run this script under TF 2.x
     assert tf.version.VERSION.startswith('2.1')
+    tf.random.set_seed(FLAGS.seed)
 
     # with tf.io.gfile.GFile(FLAGS.input_meta_data_path, 'rb') as reader:
     #     input_meta_data = json.loads(reader.read().decode('utf-8'))
