@@ -18,7 +18,7 @@ export PREDICTION_FILE=$OUTPUT_DIR/predictions.tsv
 BASE_PROPENSITY_PATH=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/PeerRead/real/o_accepted_t_buzzy_title/split0/predictions.tsv
 
 echo "python -m PeerRead.model.run_causal_bert \
-  --seed=${SPLIT} \
+  --seed=0 \
   --bert_config_file=$BERT_BASE_DIR/bert_config.json \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
   --init_checkpoint=$INIT_FILE \
@@ -44,7 +44,7 @@ echo "python -m PeerRead.model.run_causal_bert \
 "
 
 python -m PeerRead.model.run_causal_bert \
-  --seed=${SPLIT} \
+  --seed=0 \
   --bert_config_file=$BERT_BASE_DIR/bert_config.json \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
   --init_checkpoint=$INIT_FILE \

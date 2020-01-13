@@ -13,7 +13,7 @@ export DATA_FILE=/proj/sml_netapp/dat/undocumented/PeerRead/proc/arxiv-all.tf_re
 export PREDICTION_FILE=$OUTPUT_DIR/predictions.tsv
 
 echo "python -m PeerRead.model.run_causal_bert \
-  --seed=${SPLIT} \
+  --seed=0 \
   --bert_config_file=$BERT_BASE_DIR/bert_config.json \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
   --input_files=$DATA_FILE \
@@ -35,7 +35,7 @@ echo "python -m PeerRead.model.run_causal_bert \
   --simulation_mode=${SIMMODE}"
 
 python -m PeerRead.model.run_causal_bert \
-  --seed=${SPLIT} \
+  --seed=0 \
   --bert_config_file=$BERT_BASE_DIR/bert_config.json \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
   --input_files=$DATA_FILE \
