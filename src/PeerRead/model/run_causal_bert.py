@@ -21,19 +21,21 @@ from __future__ import print_function
 import os
 import time
 
+import numpy as np
 import pandas as pd
 
 from absl import app
 from absl import flags
 import tensorflow as tf
 
-from tf_official.nlp import bert_modeling as modeling, optimization
+from tf_official.nlp import bert_modeling as modeling
 from tf_official.nlp.bert import tokenization, common_flags
 from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
 from causal_bert.data_utils import dataset_to_pandas_df, filter_training
 
-from PeerRead.dataset.dataset import make_dataset_fn_from_file, make_real_labeler
+from PeerRead.dataset.dataset import make_dataset_fn_from_file, make_real_labeler, make_buzzy_based_simulated_labeler, \
+    make_propensity_based_simulated_labeler
 
 common_flags.define_common_bert_flags()
 
@@ -47,6 +49,11 @@ flags.DEFINE_enum(
 flags.DEFINE_bool(
     "do_masking", True,
     "Whether to randomly mask input words during training (serves as a sort of regularization)")
+
+flags.DEFINE_bool(
+    "fixed_feature_baseline", False,
+    "Whether to use BERT to produced fixed features (no finetuning)")
+
 
 flags.DEFINE_string('input_files', None,
                     'File path to retrieve training data for pre-training.')
@@ -94,7 +101,7 @@ flags.DEFINE_string(
 
 flags.DEFINE_string("simulated", 'real', "whether to use real data ('real'), attribute based ('attribute'), "
                                          "or propensity score-based ('propensity') simulation"),
-flags.DEFINE_float("beta0", 0.0, "param passed to simulated labeler, treatment strength")
+flags.DEFINE_float("beta0", 0.25, "param passed to simulated labeler, treatment strength")
 flags.DEFINE_float("beta1", 0.0, "param passed to simulated labeler, confounding strength")
 flags.DEFINE_float("gamma", 0.0, "param passed to simulated labeler, noise level")
 flags.DEFINE_float("exogenous_confounding", 0.0, "amount of exogenous confounding in propensity based simulation")
@@ -118,7 +125,29 @@ def _keras_format(features, labels):
 
 
 def make_dataset(is_training: bool, do_masking=False):
-    labeler = make_real_labeler(FLAGS.treatment, 'accepted')
+    if FLAGS.simulated == 'real':
+        labeler = make_real_labeler(FLAGS.treatment, 'accepted')
+
+    elif FLAGS.simulated == 'attribute':
+        labeler = make_buzzy_based_simulated_labeler(FLAGS.beta0, FLAGS.beta1, FLAGS.gamma, FLAGS.simulation_mode,
+                                                     seed=FLAGS.seed)
+    elif FLAGS.simulated == 'propensity':
+        model_predictions = pd.read_csv(FLAGS.base_propensities_path, '\t')
+
+        base_propensity_scores = model_predictions['g']
+        example_indices = model_predictions['index']
+
+        labeler = make_propensity_based_simulated_labeler(treat_strength=FLAGS.beta0,
+                                                          con_strength=FLAGS.beta1,
+                                                          noise_level=FLAGS.gamma,
+                                                          base_propensity_scores=base_propensity_scores,
+                                                          example_indices=example_indices,
+                                                          exogeneous_con=FLAGS.exogenous_confounding,
+                                                          setting=FLAGS.simulation_mode,
+                                                          seed=FLAGS.seed)
+
+    else:
+        Exception("simulated flag not recognized")
 
     tokenizer = tokenization.FullTokenizer(
         vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
@@ -204,14 +233,21 @@ def main(_):
 
     # the model
     def _get_dragon_model(do_masking):
-        dragon_model, core_model = (
-            bert_models.dragon_model(
+        if not FLAGS.fixed_feature_baseline:
+            dragon_model, core_model = (
+                bert_models.dragon_model(
+                    bert_config,
+                    max_seq_length=FLAGS.max_seq_length,
+                    binary_outcome=True,
+                    use_unsup=do_masking,
+                    max_predictions_per_seq=20,
+                    unsup_scale=1.))
+        else:
+            dragon_model, core_model = bert_models.derpy_dragon_baseline(
                 bert_config,
                 max_seq_length=FLAGS.max_seq_length,
-                binary_outcome=True,
-                use_unsup=do_masking,
-                max_predictions_per_seq=20,
-                unsup_scale=1.))
+                binary_outcome=True)
+
         # WARNING: the original optimizer causes a bug where loss increases after first epoch
         # dragon_model.optimizer = optimization.create_optimizer(
         #     FLAGS.train_batch_size * initial_lr, steps_per_epoch * epochs, warmup_steps)

@@ -270,7 +270,7 @@ def make_propensity_based_simulated_labeler(treat_strength, con_strength, noise_
     all_treatments = random.binomial(1, all_propensity_scores).astype(np.int32)
 
     # indices in dataset refer to locations in entire corpus,
-    # but propensity scores will typically only inlcude a subset of the examples
+    # but propensity scores will typically only include a subset of the examples
     reindex_hack = np.zeros(12000, dtype=np.int32)
     reindex_hack[example_indices] = np.arange(example_indices.shape[0], dtype=np.int32)
 

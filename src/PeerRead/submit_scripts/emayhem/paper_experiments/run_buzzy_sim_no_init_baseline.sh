@@ -8,19 +8,14 @@
 
 source activate ct-2
 
-export INIT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/pre-training/PeerRead/pretrained
-export INIT_FILE=$INIT_DIR/bert_model.ckpt-102
 export BERT_BASE_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/uncased_L-12_H-768_A-12
-#export INIT_FILE=$BERT_BASE_DIR/bert_model.ckpt
 export DATA_FILE=/proj/sml_netapp/dat/undocumented/PeerRead/proc/arxiv-all.tf_record
-#export OUTPUT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/cb_test
 export PREDICTION_FILE=$OUTPUT_DIR/predictions.tsv
 
 echo "python -m PeerRead.model.run_causal_bert \
   --seed=${SPLIT} \
   --bert_config_file=$BERT_BASE_DIR/bert_config.json \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
-  --init_checkpoint=$INIT_FILE \
   --input_files=$DATA_FILE \
   --model_dir=${OUTPUT_DIR} \
   --max_seq_length=250 \
@@ -30,18 +25,19 @@ echo "python -m PeerRead.model.run_causal_bert \
   --prediction_file=$PREDICTION_FILE \
   --learning_rate=5e-4 \
   --do_masking=True \
-  --simulated=real \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
   --dev_splits=${SPLIT} \
-  --treatment=${TREATMENT}
-"
+  --simulated=attribute \
+  --beta0=${BETA0} \
+  --beta1=${BETA1} \
+  --gamma=${GAMMA} \
+  --simulation_mode=${SIMMODE}"
 
 python -m PeerRead.model.run_causal_bert \
   --seed=${SPLIT} \
   --bert_config_file=$BERT_BASE_DIR/bert_config.json \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
-  --init_checkpoint=$INIT_FILE \
   --input_files=$DATA_FILE \
   --model_dir=${OUTPUT_DIR} \
   --max_seq_length=250 \
@@ -51,11 +47,11 @@ python -m PeerRead.model.run_causal_bert \
   --prediction_file=$PREDICTION_FILE \
   --learning_rate=5e-4 \
   --do_masking=True \
-  --simulated=real \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
   --dev_splits=${SPLIT} \
-  --treatment=${TREATMENT}
-
-# --strategy_type=mirror \
-
+  --simulated=attribute \
+  --beta0=${BETA0} \
+  --beta1=${BETA1} \
+  --gamma=${GAMMA} \
+  --simulation_mode=${SIMMODE}

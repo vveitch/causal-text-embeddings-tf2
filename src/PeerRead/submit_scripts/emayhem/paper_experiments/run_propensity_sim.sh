@@ -15,6 +15,7 @@ export BERT_BASE_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/pre-traine
 export DATA_FILE=/proj/sml_netapp/dat/undocumented/PeerRead/proc/arxiv-all.tf_record
 #export OUTPUT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/cb_test
 export PREDICTION_FILE=$OUTPUT_DIR/predictions.tsv
+BASE_PROPENSITY_PATH=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/PeerRead/real/o_accepted_t_buzzy_title/split0/predictions.tsv
 
 echo "python -m PeerRead.model.run_causal_bert \
   --seed=${SPLIT} \
@@ -30,11 +31,16 @@ echo "python -m PeerRead.model.run_causal_bert \
   --prediction_file=$PREDICTION_FILE \
   --learning_rate=5e-4 \
   --do_masking=True \
-  --simulated=real \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
   --dev_splits=${SPLIT} \
-  --treatment=${TREATMENT}
+  --simulated=propensity \
+  --simulation_mode=${SIMMODE} \
+  --beta0=${BETA0} \
+  --beta1=${BETA1} \
+  --gamma=${GAMMA} \
+  --exogenous_confounding=${EXOG} \
+  --base_propensities_path=${BASE_PROPENSITY_PATH}
 "
 
 python -m PeerRead.model.run_causal_bert \
@@ -51,11 +57,13 @@ python -m PeerRead.model.run_causal_bert \
   --prediction_file=$PREDICTION_FILE \
   --learning_rate=5e-4 \
   --do_masking=True \
-  --simulated=real \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
   --dev_splits=${SPLIT} \
-  --treatment=${TREATMENT}
-
-# --strategy_type=mirror \
-
+  --simulated=propensity \
+  --simulation_mode=${SIMMODE} \
+  --beta0=${BETA0} \
+  --beta1=${BETA1} \
+  --gamma=${GAMMA} \
+  --exogenous_confounding=${EXOG} \
+  --base_propensities_path=${BASE_PROPENSITY_PATH}

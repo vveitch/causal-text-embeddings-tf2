@@ -29,13 +29,15 @@ echo "python -m PeerRead.model.run_causal_bert \
   --num_train_epochs=10 \
   --prediction_file=$PREDICTION_FILE \
   --learning_rate=5e-4 \
-  --do_masking=True \
-  --simulated=real \
+  --do_masking=False \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
   --dev_splits=${SPLIT} \
-  --treatment=${TREATMENT}
-"
+  --simulated=attribute \
+  --beta0=${BETA0} \
+  --beta1=${BETA1} \
+  --gamma=${GAMMA} \
+  --simulation_mode=${SIMMODE}"
 
 python -m PeerRead.model.run_causal_bert \
   --seed=${SPLIT} \
@@ -50,12 +52,12 @@ python -m PeerRead.model.run_causal_bert \
   --num_train_epochs=10 \
   --prediction_file=$PREDICTION_FILE \
   --learning_rate=5e-4 \
-  --do_masking=True \
-  --simulated=real \
+  --do_masking=False \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
   --dev_splits=${SPLIT} \
-  --treatment=${TREATMENT}
-
-# --strategy_type=mirror \
-
+  --simulated=attribute \
+  --beta0=${BETA0} \
+  --beta1=${BETA1} \
+  --gamma=${GAMMA} \
+  --simulation_mode=${SIMMODE}
