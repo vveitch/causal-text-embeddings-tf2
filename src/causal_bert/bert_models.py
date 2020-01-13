@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 import tensorflow_hub as hub
+from tensorflow.keras.layers import Lambda
 
 from tf_official.nlp import bert_modeling as modeling
 from tf_official.nlp.bert_models import pretrain_model
@@ -74,6 +75,41 @@ def get_hydra_heads(binary_outcome: bool, num_treatments: int, missing_outcomes:
         q = []
         for treat in range(num_treatments):
             q.append(tf.keras.layers.Dense(1, activation=activation, name=f"q{treat}")(qz))
+
+        if not missing_outcomes:
+            g = tf.keras.layers.Dense(num_treatments, activation='softmax', name='g')(z)
+            return g, q
+        else:
+            g0 = tf.keras.layers.Dense(num_treatments, activation='softmax', name='g0')(z)
+            g1 = tf.keras.layers.Dense(num_treatments, activation='softmax', name='g1')(z)
+            m = tf.keras.layers.Dense(1, activation='sigmoid', name='y_is_obs')(z)
+            return g0, g1, m, q
+
+    return hydra_heads
+
+
+def get_hydra_heads2(binary_outcome: bool, num_treatments: int, missing_outcomes: bool):
+    """
+    A variant of dragonnet allowing possibly many treatment levels
+
+    Returns: a keras layer with signature
+    [float vector] -> {g: float, Q0: float, Q1: float}
+    """
+
+    def hydra_heads(z: tf.Tensor):
+        if binary_outcome:
+            activation = 'sigmoid'
+        else:
+            activation = None
+
+        qz = tf.keras.layers.Dense(200, activation='relu')(z)
+        qz = tf.keras.layers.Dense(200, activation='relu')(qz)
+        qs = tf.keras.layers.Dense(num_treatments, activation=activation, name='all_qs')(qz)
+
+        q = []
+        for treat, q_out in enumerate(tf.split(qs, num_or_size_splits=num_treatments, axis=-1)):
+            renamer = Lambda(tf.identity, name=f"q{treat}")
+            q += [renamer(q_out)]
 
         if not missing_outcomes:
             g = tf.keras.layers.Dense(num_treatments, activation='softmax', name='g')(z)
@@ -323,7 +359,7 @@ def hydra_model(bert_config,
 
     pooled_output = bert_model.outputs[0]
 
-    head_model = get_hydra_heads(binary_outcome, num_treatments, missing_outcomes)
+    head_model = get_hydra_heads2(binary_outcome, num_treatments, missing_outcomes)
     outputs = head_model(pooled_output)  # note: number of outputs changes depending on missingness or not
 
     hydra_model = tf.keras.Model(

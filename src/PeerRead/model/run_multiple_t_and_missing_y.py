@@ -18,6 +18,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import time
+
 import os
 import pandas as pd
 import numpy as np
@@ -282,27 +284,43 @@ def main(_):
             checkpoint = tf.train.Checkpoint(model=core_model)
             checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
+        print("loss construction reached")
+        t0 = time.time()
         if not missing_outcomes:
-            losses = {'g': 'sparse_categorical_crossentropy'}
+            losses = {'g': tf.keras.losses.SparseCategoricalCrossentropy()}
             loss_weights = {'g': 1.0}
         else:
-            losses = {'g0': 'sparse_categorical_crossentropy', 'g1': 'sparse_categorical_crossentropy',
-                      'y_is_obs': 'binary_crossentropy'}
+            losses = {'g0': tf.keras.losses.SparseCategoricalCrossentropy(),
+                      'g1': tf.keras.losses.SparseCategoricalCrossentropy(),
+                      'y_is_obs': tf.keras.losses.BinaryCrossentropy()}
             loss_weights = {'g0': 1.0, 'g1': 1.0, 'y_is_obs': 1.0}
 
         for treat in range(num_treatments):
-            losses[f"q{treat}"] = 'binary_crossentropy'
+            losses[f"q{treat}"] = tf.keras.losses.BinaryCrossentropy()
             loss_weights[f"q{treat}"] = 0.1
+
+        t1 = time.time()
+        print(f"Loss construction completed: {t1-t0}")
+
+        print("make metrics reached")
+        t0 = time.time()
+        hydra_metrics = make_hydra_metrics(num_treatments, missing_outcomes)
+        t1 = time.time()
+        print(f"metrics construction completed: {t1-t0}")
 
         latest_checkpoint = tf.train.latest_checkpoint(FLAGS.model_dir)
         if latest_checkpoint:
             hydra_model.load_weights(latest_checkpoint)
 
+        print("Compile reached")
+        t0 = time.time()
         hydra_model.compile(optimizer=optimizer,
                             loss=losses,
                             loss_weights=loss_weights,
-                            weighted_metrics=make_hydra_metrics(num_treatments, missing_outcomes))
-
+                            weighted_metrics=hydra_metrics
+                            )
+        t1 = time.time()
+        print(f"Compile completed: {t1-t0}")
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
         checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir, save_weights_only=True)

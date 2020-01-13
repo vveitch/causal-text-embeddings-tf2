@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="6de24de9-0722-4609-bbcb-adee8c69cbe4" name="teeth" url="http://teeth.cs.columbia.edu">
+        <fileTransfer host="teeth.cs.columbia.edu" port="22" privateKey="$USER_HOME$/.ssh/id_rsa" rootFolder="/home/vveitch" accessType="SFTP" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
