@@ -188,7 +188,7 @@ def make_hydra_metrics(num_treatments, missing_outcomes=False):
         tf.keras.metrics.AUC
     ]
 
-    q_names = ['/binary_accuracy', '/precision', '/recall', '/auc']
+    q_names = ['metrics/binary_accuracy', 'metrics/precision', 'metrics/recall', 'metrics/auc']
 
     if missing_outcomes:
         metrics = {'g0': [tf.keras.metrics.SparseCategoricalAccuracy()],

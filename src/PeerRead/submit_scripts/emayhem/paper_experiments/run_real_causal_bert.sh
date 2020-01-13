@@ -13,17 +13,28 @@ export INIT_FILE=$INIT_DIR/bert_model.ckpt-102
 export BERT_BASE_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/uncased_L-12_H-768_A-12
 #export INIT_FILE=$BERT_BASE_DIR/bert_model.ckpt
 export DATA_FILE=/proj/sml_netapp/dat/undocumented/PeerRead/proc/arxiv-all.tf_record
-export OUTPUT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/cb_test
+#export OUTPUT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/cb_test
 export PREDICTION_FILE=$OUTPUT_DIR/predictions.tsv
 
 python -m PeerRead.model.run_causal_bert \
---bert_config_file=$BERT_BASE_DIR/bert_config.json \
---vocab_file=$BERT_BASE_DIR/vocab.txt \
---init_checkpoint=$INIT_FILE \
---input_files=$DATA_FILE \
---model_dir=$OUTPUT_DIR \
---num_train_epochs=4 \
---seed=0 \
---prediction_file=$PREDICTION_FILE \
---learning_rate=5e-4
+  --seed=${SPLIT} \
+  --bert_config_file=$BERT_BASE_DIR/bert_config.json \
+  --vocab_file=$BERT_BASE_DIR/vocab.txt \
+  --init_checkpoint=$INIT_FILE \
+  --input_files=$DATA_FILE \
+  --model_dir=${OUTPUT_DIR} \
+  --max_seq_length=250 \
+  --train_batch_size=32 \
+  --learning_rate=3e-4 \
+  --num_train_epochs=10 \
+  --prediction_file=$PREDICTION_FILE \
+  --learning_rate=5e-4 \
+  --do_masking=True \
+  --simualted=real \
+  --num_splits=${NUM_SPLITS} \
+  --test_splits=${SPLIT} \
+  --dev_splits=${SPLIT} \
+  --treatment=${TREATMENT}
+
 # --strategy_type=mirror \
+

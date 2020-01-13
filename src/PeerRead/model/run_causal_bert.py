@@ -27,13 +27,11 @@ from absl import app
 from absl import flags
 import tensorflow as tf
 
-# pylint: disable=g-import-not-at-top,redefined-outer-name,reimported
 from tf_official.nlp import bert_modeling as modeling, optimization
-# from nlp import bert_models
 from tf_official.nlp.bert import tokenization, common_flags
 from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
-from causal_bert.data_utils import dataset_to_pandas_df
+from causal_bert.data_utils import dataset_to_pandas_df, filter_training
 
 from PeerRead.dataset.dataset import make_dataset_fn_from_file, make_real_labeler
 
@@ -147,6 +145,7 @@ def make_dataset(is_training: bool, do_masking=False):
 
     # format expected by Keras for training
     if is_training:
+        dataset = filter_training(dataset)
         dataset = dataset.map(_keras_format)
 
     return dataset
@@ -154,22 +153,17 @@ def make_dataset(is_training: bool, do_masking=False):
 
 def make_dragonnet_metrics():
     METRICS = [
-        tf.keras.metrics.TruePositives,
-        tf.keras.metrics.FalsePositives,
-        tf.keras.metrics.TrueNegatives,
-        tf.keras.metrics.FalseNegatives,
         tf.keras.metrics.BinaryAccuracy,
         tf.keras.metrics.Precision,
         tf.keras.metrics.Recall,
         tf.keras.metrics.AUC
     ]
 
-    NAMES = ['true_positive', 'false_positive', 'true_negative', 'false_negative',
-             'binary_accuracy', 'precision', 'recall', 'auc']
+    NAMES = ['binary_accuracy', 'precision', 'recall', 'auc']
 
-    g_metrics = [m(name='/' + n) for m, n in zip(METRICS, NAMES)]
-    q0_metrics = [m(name='/' + n) for m, n in zip(METRICS, NAMES)]
-    q1_metrics = [m(name='/' + n) for m, n in zip(METRICS, NAMES)]
+    g_metrics = [m(name='metrics/' + n) for m, n in zip(METRICS, NAMES)]
+    q0_metrics = [m(name='metrics/' + n) for m, n in zip(METRICS, NAMES)]
+    q1_metrics = [m(name='metrics/' + n) for m, n in zip(METRICS, NAMES)]
 
     return {'g': g_metrics, 'q0': q0_metrics, 'q1': q1_metrics}
 

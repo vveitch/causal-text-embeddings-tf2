@@ -1,9 +1,8 @@
 """
+Produced tf.data.Datasets for use with Causal BERT.
 
-Parses PeerRead data into a Bert-based model compatible format, and stores as tfrecord
-
-See dataset.py for the corresponding code to read this data
-
+Note: this is legacy code ported from tensorflow 1.x
+For a modern (much simpler) version of this, refer to dataset creation in run_multiple_t_and_missing_y.py
 """
 import argparse
 import numpy as np

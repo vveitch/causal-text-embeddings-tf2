@@ -26,5 +26,5 @@ python -m PeerRead.model.run_multiple_t_and_missing_y \
 --seed=0 \
 --prediction_file=$PREDICTION_FILE \
 --label_df_file ../dat/PeerRead/proc/arxiv-all-multi-treat-and-missing-outcomes.feather \
---learning_rate=5e-5
+--learning_rate=5e-4
 # --strategy_type=mirror \
