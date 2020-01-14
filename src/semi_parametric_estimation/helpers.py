@@ -34,10 +34,12 @@ def remove_by_value(input, lb=-np.inf, ub=np.inf):
     Returns: input truncated
 
     """
+
     def remove_one(one_in):
         one_in = one_in.copy()
         include = np.logical_and(one_in > lb, one_in < ub)
         return one_in[include]
+
     if type(input) is list:
         return [remove_one(one_in) for one_in in input]
     else:
@@ -56,11 +58,13 @@ def truncate_by_value(input, lb=-np.inf, ub=np.inf):
     Returns: input truncated
 
     """
+
     def bound_one(one_in):
         one_in = one_in.copy()
         one_in[one_in < lb] = lb
         one_in[one_in > ub] = ub
         return one_in
+
     if type(input) is list:
         return [bound_one(one_in) for one_in in input]
     else:
@@ -69,11 +73,11 @@ def truncate_by_value(input, lb=-np.inf, ub=np.inf):
 
 def cross_entropy(y, p, weights=1):
     per_example_loss = y * np.log(p) + (1. - y) * np.log(1. - p)
-    per_example_loss = weights*per_example_loss
+    per_example_loss = weights * per_example_loss
     return -np.mean(per_example_loss)
 
 
 def mse(x, y, weights=1):
-    per_example_loss = np.square(x - y) if weights else np.square(x - y)
+    per_example_loss = np.square(x - y)
     per_example_loss = weights * per_example_loss
     return np.mean(per_example_loss)

@@ -197,7 +197,7 @@ class BenchmarkFileLogger(BaseBenchmarkLogger):
 
     Args:
       model_name: string, the name of the model.
-      dataset_name: string, the name of dataset for training and evaluation.
+      dataset_name: string, the name of dataset_ for training and evaluation.
       run_params: dict, the dictionary of parameters for the run, it could
         include hyperparameters or other params that are important for the run.
       test_id: string, the unique name of the test run by the combination of key
@@ -268,7 +268,7 @@ class BenchmarkBigQueryLogger(BaseBenchmarkLogger):
 
     Args:
       model_name: string, the name of the model.
-      dataset_name: string, the name of dataset for training and evaluation.
+      dataset_name: string, the name of dataset_ for training and evaluation.
       run_params: dict, the dictionary of parameters for the run, it could
         include hyperparameters or other params that are important for the run.
       test_id: string, the unique name of the test run by the combination of key
@@ -303,7 +303,7 @@ def _gather_run_info(model_name, dataset_name, run_params, test_id):
   """Collect the benchmark run information for the local environment."""
   run_info = {
       "model_name": model_name,
-      "dataset": {"name": dataset_name},
+      "dataset_": {"name": dataset_name},
       "machine_config": {},
       "test_id": test_id,
       "run_date": datetime.datetime.utcnow().strftime(

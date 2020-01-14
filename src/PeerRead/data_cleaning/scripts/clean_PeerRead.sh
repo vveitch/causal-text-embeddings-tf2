@@ -4,7 +4,7 @@
 
 PeerDir=/home/victor/Documents/causal-spe-embeddings/dat/PeerRead/
 
-for dataset in $PeerDir*/; do
+for dataset_ in $PeerDir*/; do
     echo $dataset
 #    python -m data_cleaning.process_PeerRead_abstracts \
 #    --review-json-dir \

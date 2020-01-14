@@ -70,7 +70,7 @@ def file_based_input_fn_builder(input_file, name_to_features, batch_size,
     return example
 
   def input_fn():
-    """Returns dataset for training/evaluation."""
+    """Returns dataset_ for training/evaluation."""
     num_threads = 8
     if isinstance(input_file, str):
       d = tf.data.TFRecordDataset(input_file)
@@ -122,7 +122,7 @@ def file_based_input_fn_builder(input_file, name_to_features, batch_size,
 
 def create_classification_dataset(file_path, seq_length, batch_size,
                                   is_training):
-  """Creates input dataset from (tf)records files for pretraining."""
+  """Creates input dataset_ from (tf)records files for pretraining."""
   name_to_features = {
       "input_ids": tf.io.FixedLenFeature([seq_length], tf.int64),
       "input_mask": tf.io.FixedLenFeature([seq_length], tf.float32),
@@ -138,7 +138,7 @@ def create_classification_dataset(file_path, seq_length, batch_size,
 
 
 def create_squad_dataset(file_path, seq_length, batch_size, is_training):
-  """Creates input dataset from (tf)records files for pretraining."""
+  """Creates input dataset_ from (tf)records files for pretraining."""
   name_to_features = {
       "unique_ids": tf.io.FixedLenFeature([], tf.int64),
       "input_ids": tf.io.FixedLenFeature([seq_length], tf.int64),
@@ -160,11 +160,11 @@ def create_squad_dataset(file_path, seq_length, batch_size, is_training):
 
 
 def _get_input_iterator(input_fn, strategy):
-  """Returns distributed dataset iterator."""
+  """Returns distributed dataset_ iterator."""
 
   # When training with TPU pods, datasets needs to be cloned across
   # workers. Since Dataset instance cannot be cloned in eager mode, we instead
-  # pass callable that returns a dataset.
+  # pass callable that returns a dataset_.
   input_data = input_fn()
   if callable(input_data):
     iterator = iter(
@@ -176,11 +176,11 @@ def _get_input_iterator(input_fn, strategy):
 
 def get_classification_input_data(batch_size, seq_len, strategy, is_training,
                                   file_path):
-  """Returns input dataset from input file string."""
+  """Returns input dataset_ from input file string."""
 
-  # When using TPU pods, we need to clone dataset across
-  # workers and need to pass in function that returns the dataset rather
-  # than passing dataset instance itself.
+  # When using TPU pods, we need to clone dataset_ across
+  # workers and need to pass in function that returns the dataset_ rather
+  # than passing dataset_ instance itself.
   use_dataset_fn = isinstance(strategy, tf.distribute.experimental.TPUStrategy)
   if use_dataset_fn:
     if batch_size % strategy.num_replicas_in_sync != 0:
@@ -190,7 +190,7 @@ def get_classification_input_data(batch_size, seq_len, strategy, is_training,
 
     # As auto rebatching is not supported in
     # `experimental_distribute_datasets_from_function()` API, which is
-    # required when cloning dataset to multiple workers in eager mode,
+    # required when cloning dataset_ to multiple workers in eager mode,
     # we use per-replica batch size.
     batch_size = int(batch_size / strategy.num_replicas_in_sync)
 
@@ -209,11 +209,11 @@ def get_classification_input_data(batch_size, seq_len, strategy, is_training,
 
 def get_squad_input_data(batch_size, seq_len, q_len, strategy, is_training,
                          file_path):
-  """Returns input dataset from input file string."""
+  """Returns input dataset_ from input file string."""
 
-  # When using TPU pods, we need to clone dataset across
-  # workers and need to pass in function that returns the dataset rather
-  # than passing dataset instance itself.
+  # When using TPU pods, we need to clone dataset_ across
+  # workers and need to pass in function that returns the dataset_ rather
+  # than passing dataset_ instance itself.
   use_dataset_fn = isinstance(strategy, tf.distribute.experimental.TPUStrategy)
   if use_dataset_fn:
     if batch_size % strategy.num_replicas_in_sync != 0:
@@ -223,7 +223,7 @@ def get_squad_input_data(batch_size, seq_len, q_len, strategy, is_training,
 
     # As auto rebatching is not supported in
     # `experimental_distribute_datasets_from_function()` API, which is
-    # required when cloning dataset to multiple workers in eager mode,
+    # required when cloning dataset_ to multiple workers in eager mode,
     # we use per-replica batch size.
     batch_size = int(batch_size / strategy.num_replicas_in_sync)
 
@@ -256,7 +256,7 @@ def create_pretrain_dataset(file_names,
                             perm_size,
                             num_predict=None,
                             input_pipeline_context=None):
-  """Creates pretrain dataset."""
+  """Creates pretrain dataset_."""
 
   def parser(record):
     """Function used to parse tfrecord."""
@@ -412,11 +412,11 @@ def get_pretrain_input_data(batch_size,
                             bi_data,
                             uncased,
                             num_hosts=1):
-  """Returns input dataset from input file string."""
+  """Returns input dataset_ from input file string."""
 
-  # When using TPU pods, we need to clone dataset across
-  # workers and need to pass in function that returns the dataset rather
-  # than passing dataset instance itself.
+  # When using TPU pods, we need to clone dataset_ across
+  # workers and need to pass in function that returns the dataset_ rather
+  # than passing dataset_ instance itself.
   use_dataset_fn = isinstance(strategy, tf.distribute.experimental.TPUStrategy)
   split = "train"
   record_glob_base = format_filename(
@@ -439,7 +439,7 @@ def get_pretrain_input_data(batch_size,
 
     # As auto rebatching is not supported in
     # `experimental_distribute_datasets_from_function()` API, which is
-    # required when cloning dataset to multiple workers in eager mode,
+    # required when cloning dataset_ to multiple workers in eager mode,
     # we use per-replica batch size.
     batch_size = int(batch_size / strategy.num_replicas_in_sync)
 
@@ -486,7 +486,7 @@ def get_pretrain_input_data(batch_size,
   logging.info(record_info["filenames"])
 
   def _dataset_fn(ctx=None):
-    """Function that can create a pretrain dataset."""
+    """Function that can create a pretrain dataset_."""
 
     train_dataset = create_pretrain_dataset(
         file_names=record_info["filenames"],
@@ -505,7 +505,7 @@ def parse_files_to_dataset(parser,
                            file_paths,
                            bsz_per_core,
                            input_pipeline_context=None):
-  """Creates the dataset given file paths."""
+  """Creates the dataset_ given file paths."""
 
   dataset = tf.data.Dataset.from_tensor_slices(file_paths)
 

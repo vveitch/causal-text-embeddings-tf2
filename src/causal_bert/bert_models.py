@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 import tensorflow_hub as hub
+from tensorflow.keras.layers import Lambda
 
 from tf_official.nlp import bert_modeling as modeling
 from tf_official.nlp.bert_models import pretrain_model
@@ -87,6 +88,41 @@ def get_hydra_heads(binary_outcome: bool, num_treatments: int, missing_outcomes:
     return hydra_heads
 
 
+def get_hydra_heads2(binary_outcome: bool, num_treatments: int, missing_outcomes: bool):
+    """
+    A variant of dragonnet allowing possibly many treatment levels
+
+    Returns: a keras layer with signature
+    [float vector] -> {g: float, Q0: float, Q1: float}
+    """
+
+    def hydra_heads(z: tf.Tensor):
+        if binary_outcome:
+            activation = 'sigmoid'
+        else:
+            activation = None
+
+        qz = tf.keras.layers.Dense(200, activation='relu')(z)
+        qz = tf.keras.layers.Dense(200, activation='relu')(qz)
+        qs = tf.keras.layers.Dense(num_treatments, activation=activation, name='all_qs')(qz)
+
+        q = []
+        for treat, q_out in enumerate(tf.split(qs, num_or_size_splits=num_treatments, axis=-1)):
+            renamer = Lambda(tf.identity, name=f"q{treat}")
+            q += [renamer(q_out)]
+
+        if not missing_outcomes:
+            g = tf.keras.layers.Dense(num_treatments, activation='softmax', name='g')(z)
+            return g, q
+        else:
+            g0 = tf.keras.layers.Dense(num_treatments, activation='softmax', name='g0')(z)
+            g1 = tf.keras.layers.Dense(num_treatments, activation='softmax', name='g1')(z)
+            m = tf.keras.layers.Dense(1, activation='sigmoid', name='y_is_obs')(z)
+            return g0, g1, m, q
+
+    return hydra_heads
+
+
 def dragon_model_simple(bert_config,
                         max_seq_length: int,
                         binary_outcome: bool,
@@ -122,6 +158,54 @@ def dragon_model_simple(bert_config,
 
     head_model = get_dragon_heads(binary_outcome)
     g, q0, q1 = head_model(pooled_output)
+
+    # output = tf.keras.layers.Dropout(rate=bert_config.hidden_dropout_prob)(
+    #     pooled_output)
+
+    return tf.keras.Model(
+        inputs={
+            'input_word_ids': input_word_ids,
+            'input_mask': input_mask,
+            'input_type_ids': input_type_ids
+        },
+        outputs=[g, q0, q1]), bert_model
+
+
+def derpy_dragon_baseline(bert_config,
+                          max_seq_length: int,
+                          binary_outcome: bool):
+    """A baseline for causal-BERT where we do not use finetuning
+
+    Args:
+      bert_config: BertConfig, the config defines the core BERT model.
+      max_seq_length: integer, the maximum input sequence length.
+      binary_outcome: bool, whether outcome is binary
+      hub_module_url: (Experimental) TF-Hub path/url to Bert module.
+
+    Returns:
+      Combined prediction model (words, sample_weight, type) -> {g: float, Q0: float, Q1: float}
+      BERT sub-model
+    """
+    input_word_ids = tf.keras.layers.Input(
+        shape=(max_seq_length,), dtype=tf.int32, name='input_word_ids')
+    input_mask = tf.keras.layers.Input(
+        shape=(max_seq_length,), dtype=tf.int32, name='input_mask')
+    input_type_ids = tf.keras.layers.Input(
+        shape=(max_seq_length,), dtype=tf.int32, name='input_type_ids')
+
+    bert_model = modeling.get_bert_model(
+        input_word_ids,
+        input_mask,
+        input_type_ids,
+        config=bert_config)
+    bert_model.trainable = False
+    sequence_output = bert_model.outputs[1]
+    sum_sequence_output = tf.reduce_sum(sequence_output, axis=1)
+    sum_sequence_output = tf.keras.layers.Dense(500, activation='relu')(sum_sequence_output)
+    sum_sequence_output = tf.keras.layers.Dense(200, activation='relu')(sum_sequence_output)
+
+    head_model = get_dragon_heads(binary_outcome)
+    g, q0, q1 = head_model(sum_sequence_output)
 
     # output = tf.keras.layers.Dropout(rate=bert_config.hidden_dropout_prob)(
     #     pooled_output)
@@ -275,7 +359,7 @@ def hydra_model(bert_config,
 
     pooled_output = bert_model.outputs[0]
 
-    head_model = get_hydra_heads(binary_outcome, num_treatments, missing_outcomes)
+    head_model = get_hydra_heads2(binary_outcome, num_treatments, missing_outcomes)
     outputs = head_model(pooled_output)  # note: number of outputs changes depending on missingness or not
 
     hydra_model = tf.keras.Model(
@@ -354,9 +438,13 @@ def classifier_model(bert_config,
 
 
 if __name__ == '__main__':
-    bert_config_file = "pre-trained/uncased_L-12_H-768_A-12/bert_config.json"
+    bert_config_file = "../pre-trained/uncased_L-12_H-768_A-12/bert_config.json"
     bert_config = modeling.BertConfig.from_json_file(bert_config_file)
 
     max_seq_length = 250
     binary_outcome = True
     hub_module_url = None
+
+    derp = derpy_dragon_baseline(bert_config,
+                                 max_seq_length,
+                                 binary_outcome)

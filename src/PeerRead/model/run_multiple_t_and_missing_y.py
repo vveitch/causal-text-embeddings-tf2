@@ -18,6 +18,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import time
+
 import os
 import pandas as pd
 import numpy as np
@@ -32,7 +34,8 @@ from tf_official.nlp.bert import tokenization, common_flags
 from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
 
-from causal_bert.data_utils import load_basic_bert_data, dataset_labels_from_pandas, add_masking, dataset_to_pandas_df
+from causal_bert.data_utils import load_basic_bert_data, dataset_labels_from_pandas, add_masking, dataset_to_pandas_df, \
+    make_test_train_splits, filter_training
 
 common_flags.define_common_bert_flags()
 
@@ -131,8 +134,8 @@ def make_hydra_keras_format(num_treatments, missing_outcomes=False):
     return _hydra_keras_format
 
 
-def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, missing_outcomes=False, do_masking=False,
-                 input_pipeline_context=None):
+def make_dataset(tf_record_files: str, num_treatments: int, is_training: bool, is_eval=False, missing_outcomes=False,
+                 do_masking=False, input_pipeline_context=None):
     df_file = FLAGS.label_df_file
     dataset = load_basic_bert_data(tf_record_files, FLAGS.max_seq_length, is_training=is_training,
                                    input_pipeline_context=input_pipeline_context)
@@ -152,8 +155,8 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
         return f, l
 
     dataset = dataset.map(_standardize_label_naming, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-
-    dataset = dataset.cache()
+    dataset = make_test_train_splits(dataset, num_splits=FLAGS.num_splits, dev_splits=FLAGS.dev_splits,
+                                     test_splits=FLAGS.test_splits)
 
     if do_masking:
         tokenizer = tokenization.FullTokenizer(
@@ -161,6 +164,8 @@ def make_dataset(tf_record_files: str, is_training: bool, num_treatments: int, m
         dataset = add_masking(dataset, tokenizer=tokenizer)
 
     if is_training:
+        dataset = filter_training(dataset, is_training=not is_eval)
+
         # batching needs to happen before sample weights are created
         dataset = dataset.shuffle(25000)
         dataset = dataset.batch(FLAGS.train_batch_size, drop_remainder=True)
@@ -185,7 +190,7 @@ def make_hydra_metrics(num_treatments, missing_outcomes=False):
         tf.keras.metrics.AUC
     ]
 
-    q_names = ['/binary_accuracy', '/precision', '/recall', '/auc']
+    q_names = ['metrics/binary_accuracy', 'metrics/precision', 'metrics/recall', 'metrics/auc']
 
     if missing_outcomes:
         metrics = {'g0': [tf.keras.metrics.SparseCategoricalAccuracy()],
@@ -261,8 +266,16 @@ def main(_):
     with strategy.scope():
         train_data = make_dataset(tf_record_files=FLAGS.input_files,
                                   is_training=True,
-                                  num_treatments=num_treatments, missing_outcomes=missing_outcomes,
+                                  num_treatments=num_treatments,
+                                  missing_outcomes=missing_outcomes,
                                   do_masking=FLAGS.do_masking)
+        eval_data = make_dataset(tf_record_files=FLAGS.input_files,
+                                 is_training=True,
+                                 is_eval=True,
+                                 num_treatments=num_treatments,
+                                 missing_outcomes=missing_outcomes,
+                                 do_masking=FLAGS.do_masking)
+
         hydra_model, core_model = _get_hydra_model(FLAGS.do_masking)
         optimizer = hydra_model.optimizer
         print(hydra_model.summary())
@@ -271,27 +284,43 @@ def main(_):
             checkpoint = tf.train.Checkpoint(model=core_model)
             checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
+        print("loss construction reached")
+        t0 = time.time()
         if not missing_outcomes:
-            losses = {'g': 'sparse_categorical_crossentropy'}
+            losses = {'g': tf.keras.losses.SparseCategoricalCrossentropy()}
             loss_weights = {'g': 1.0}
         else:
-            losses = {'g0': 'sparse_categorical_crossentropy', 'g1': 'sparse_categorical_crossentropy',
-                      'y_is_obs': 'binary_crossentropy'}
+            losses = {'g0': tf.keras.losses.SparseCategoricalCrossentropy(),
+                      'g1': tf.keras.losses.SparseCategoricalCrossentropy(),
+                      'y_is_obs': tf.keras.losses.BinaryCrossentropy()}
             loss_weights = {'g0': 1.0, 'g1': 1.0, 'y_is_obs': 1.0}
 
         for treat in range(num_treatments):
-            losses[f"q{treat}"] = 'binary_crossentropy'
+            losses[f"q{treat}"] = tf.keras.losses.BinaryCrossentropy()
             loss_weights[f"q{treat}"] = 0.1
+
+        t1 = time.time()
+        print(f"Loss construction completed: {t1-t0}")
+
+        print("make metrics reached")
+        t0 = time.time()
+        hydra_metrics = make_hydra_metrics(num_treatments, missing_outcomes)
+        t1 = time.time()
+        print(f"metrics construction completed: {t1-t0}")
 
         latest_checkpoint = tf.train.latest_checkpoint(FLAGS.model_dir)
         if latest_checkpoint:
             hydra_model.load_weights(latest_checkpoint)
 
+        print("Compile reached")
+        t0 = time.time()
         hydra_model.compile(optimizer=optimizer,
                             loss=losses,
                             loss_weights=loss_weights,
-                            weighted_metrics=make_hydra_metrics(num_treatments, missing_outcomes))
-
+                            weighted_metrics=hydra_metrics
+                            )
+        t1 = time.time()
+        print(f"Compile completed: {t1-t0}")
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)
         checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
         checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir, save_weights_only=True)
@@ -300,10 +329,10 @@ def main(_):
 
         hydra_model.fit(
             x=train_data,
-            # validation_data=evaluation_dataset,
+            validation_data=eval_data,
             steps_per_epoch=steps_per_epoch,
             epochs=epochs,
-            # validation_steps=eval_steps,
+            validation_steps=256,
             callbacks=callbacks)
 
     # save a final model checkpoint (so we can restore weights into model w/o training idiosyncracies)
@@ -319,7 +348,7 @@ def main(_):
     # make predictions and write to file
     # NOTE: theory suggests we should make predictions on heldout data ("cross fitting" or "sample splitting")
     # but our experiments showed best results by just reusing the data
-    # You can accommodate sample splitting by using the splitting arguments for the dataset creation
+    # You can accommodate sample splitting by using the splitting arguments for the dataset_ creation
 
     eval_data = make_dataset(FLAGS.input_files, is_training=False, do_masking=False,
                              num_treatments=num_treatments, missing_outcomes=missing_outcomes)

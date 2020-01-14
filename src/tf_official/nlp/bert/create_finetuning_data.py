@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""BERT finetuning task dataset generator."""
+"""BERT finetuning task dataset_ generator."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -94,7 +94,7 @@ flags.DEFINE_integer(
 
 
 def generate_classifier_dataset():
-  """Generates classifier dataset and returns input meta data."""
+  """Generates classifier dataset_ and returns input meta data."""
   assert FLAGS.input_data_dir and FLAGS.classification_task_name
 
   processors = {
@@ -119,7 +119,7 @@ def generate_classifier_dataset():
 
 
 def generate_squad_dataset():
-  """Generates squad training dataset and returns input meta data."""
+  """Generates squad training dataset_ and returns input meta data."""
   assert FLAGS.squad_data_file
   return squad_lib.generate_tf_record_from_json_file(
       FLAGS.squad_data_file, FLAGS.vocab_file, FLAGS.train_data_output_path,

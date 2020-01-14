@@ -125,7 +125,7 @@ def define_performance(num_parallel_calls=False, inter_op=False, intra_op=False,
     flags.DEFINE_bool(
         name="use_synthetic_data", short_name="synth", default=False,
         help=help_wrap(
-            "If set, use fake data (zeroes) instead of a real dataset. "
+            "If set, use fake data (zeroes) instead of a real dataset_. "
             "This mode is useful for performance debugging, as it removes "
             "input processing steps, but will not learn anything."))
 

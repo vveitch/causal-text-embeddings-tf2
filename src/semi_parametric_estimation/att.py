@@ -294,7 +294,7 @@ def tmle_missing_outcomes(q0, q1, g0, g1, p_delta, t, y, delta, cross_ent_outcom
     old_loss = _loss(q, g, y, t, deltaTerm)
 
     while True:
-        q0, q1, q, g = _perturb_g_and_q(q0_old, q1_old, g_old, t, delta, pd0, pd1, deps=deps)
+        q0, q1, q, g = _perturb_g_and_q(q0_old, q1_old, g_old, t, delta, pd0, pd1)
 
         new_loss = _loss(q, g, y, t, deltaTerm)
 

@@ -1,5 +1,5 @@
 """
-create (hand-authored and lexical) features for baselines classifiers and save to under dataset folder in each split
+create (hand-authored and lexical) features for baselines classifiers and save to under dataset_ folder in each split
 """
 
 import sys, os, random, glob

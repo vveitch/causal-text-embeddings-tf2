@@ -1,9 +1,8 @@
 """
+Produced tf.data.Datasets for use with Causal BERT.
 
-Parses PeerRead data into a Bert-based model compatible format, and stores as tfrecord
-
-See dataset.py for the corresponding code to read this data
-
+Note: this is legacy code ported from tensorflow 1.x
+For a modern (much simpler) version of this, refer to dataset_ creation in run_multiple_t_and_missing_y.py
 """
 import argparse
 import numpy as np
@@ -270,8 +269,8 @@ def make_propensity_based_simulated_labeler(treat_strength, con_strength, noise_
         (1. - exogeneous_con) * logit(base_propensity_scores) + exogeneous_con * extra_confounding).astype(np.float32)
     all_treatments = random.binomial(1, all_propensity_scores).astype(np.int32)
 
-    # indices in dataset refer to locations in entire corpus,
-    # but propensity scores will typically only inlcude a subset of the examples
+    # indices in dataset_ refer to locations in entire corpus,
+    # but propensity scores will typically only include a subset of the examples
     reindex_hack = np.zeros(12000, dtype=np.int32)
     reindex_hack[example_indices] = np.arange(example_indices.shape[0], dtype=np.int32)
 
@@ -297,7 +296,7 @@ def make_propensity_based_simulated_labeler(treat_strength, con_strength, noise_
 
 def make_split_document_labels(num_splits, dev_splits, test_splits):
     """
-    Adapts tensorflow dataset to produce additional elements that indicate whether each datapoint is in train, dev,
+    Adapts tensorflow dataset_ to produce additional elements that indicate whether each datapoint is in train, dev,
     or test
 
     Particularly, splits the data into num_split folds, and censors the censored_split fold
@@ -310,7 +309,7 @@ def make_split_document_labels(num_splits, dev_splits, test_splits):
 
     Returns
     -------
-    fn: A function that can be used to map a dataset to censor some of the document labels.
+    fn: A function that can be used to map a dataset_ to censor some of the document labels.
     """
 
     def _tf_in1d(a, b):
@@ -400,7 +399,7 @@ def dataset_processing(dataset, parser, masker, labeler,
 
     Parameters
     ----------
-    dataset  tf.data dataset
+    dataset_  tf.data dataset_
     parser function, read the examples, should be based on tf.parse_single_example
     masker function, should provide Bert style masking
     labeler function, produces labels

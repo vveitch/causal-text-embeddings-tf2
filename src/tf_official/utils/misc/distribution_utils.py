@@ -198,10 +198,10 @@ def per_replica_batch_size(batch_size, num_gpus):
 # Strategies. We will have better support in `tf.data` or Distribution Strategy
 # later.
 class SyntheticDataset(object):
-  """A dataset that generates synthetic data on each device."""
+  """A dataset_ that generates synthetic data on each device."""
 
   def __init__(self, dataset, split_by=1):
-    # dataset.take(1) doesn't have GPU kernel.
+    # dataset_.take(1) doesn't have GPU kernel.
     with tf.device('device:CPU:0'):
       tensor = tf.data.experimental.get_single_element(dataset.take(1))
     flat_tensor = tf.nest.flatten(tensor)
@@ -231,7 +231,7 @@ class SyntheticDataset(object):
 
 
 class SyntheticIterator(object):
-  """A dataset that generates synthetic data on each device."""
+  """A dataset_ that generates synthetic data on each device."""
 
   def __init__(self, input_data, initializers):
     self._input_data = input_data

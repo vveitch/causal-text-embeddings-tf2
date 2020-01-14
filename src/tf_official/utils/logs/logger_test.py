@@ -223,7 +223,7 @@ class BenchmarkFileLoggerTest(tf.test.TestCase):
     log_dir = tempfile.mkdtemp(dir=self.get_temp_dir())
     log = logger.BenchmarkFileLogger(log_dir)
     run_info = {"model_name": "model_name",
-                "dataset": "dataset_name",
+                "dataset_": "dataset_name",
                 "run_info": "run_value"}
     mock_gather_run_info.return_value = run_info
     log.log_run_info("model_name", "dataset_name", {})
@@ -233,7 +233,7 @@ class BenchmarkFileLoggerTest(tf.test.TestCase):
     with tf.io.gfile.GFile(run_log) as f:
       run_info = json.loads(f.readline())
       self.assertEqual(run_info["model_name"], "model_name")
-      self.assertEqual(run_info["dataset"], "dataset_name")
+      self.assertEqual(run_info["dataset_"], "dataset_name")
       self.assertEqual(run_info["run_info"], "run_value")
 
   def test_collect_tensorflow_info(self):
@@ -310,7 +310,7 @@ class BenchmarkBigQueryLoggerTest(tf.test.TestCase):
 
     self.mock_bq_uploader = mock.MagicMock()
     self.logger = logger.BenchmarkBigQueryLogger(
-        self.mock_bq_uploader, "dataset", "run_table", "run_status_table",
+        self.mock_bq_uploader, "dataset_", "run_table", "run_status_table",
         "metric_table", "run_id")
 
   def tearDown(self):
@@ -334,12 +334,12 @@ class BenchmarkBigQueryLoggerTest(tf.test.TestCase):
     # Give it some grace period for the new thread before assert.
     time.sleep(1)
     self.mock_bq_uploader.upload_benchmark_metric_json.assert_called_once_with(
-        "dataset", "metric_table", "run_id", expected_metric_json)
+        "dataset_", "metric_table", "run_id", expected_metric_json)
 
   @mock.patch("utils.logs.logger._gather_run_info")
   def test_log_run_info(self, mock_gather_run_info):
     run_info = {"model_name": "model_name",
-                "dataset": "dataset_name",
+                "dataset_": "dataset_name",
                 "run_info": "run_value"}
     mock_gather_run_info.return_value = run_info
     self.logger.log_run_info("model_name", "dataset_name", {})
@@ -347,9 +347,9 @@ class BenchmarkBigQueryLoggerTest(tf.test.TestCase):
     # Give it some grace period for the new thread before assert.
     time.sleep(1)
     self.mock_bq_uploader.upload_benchmark_run_json.assert_called_once_with(
-        "dataset", "run_table", "run_id", run_info)
+        "dataset_", "run_table", "run_id", run_info)
     self.mock_bq_uploader.insert_run_status.assert_called_once_with(
-        "dataset", "run_status_table", "run_id", "running")
+        "dataset_", "run_status_table", "run_id", "running")
 
   def test_on_finish(self):
     self.logger.on_finish(logger.RUN_STATUS_SUCCESS)
@@ -357,7 +357,7 @@ class BenchmarkBigQueryLoggerTest(tf.test.TestCase):
     # Give it some grace period for the new thread before assert.
     time.sleep(1)
     self.mock_bq_uploader.update_run_status.assert_called_once_with(
-        "dataset", "run_status_table", "run_id", logger.RUN_STATUS_SUCCESS)
+        "dataset_", "run_status_table", "run_id", logger.RUN_STATUS_SUCCESS)
 
 
 if __name__ == "__main__":

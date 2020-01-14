@@ -73,7 +73,7 @@ def define_benchmark(benchmark_log_dir=True, bigquery_uploader=True):
     flags.DEFINE_string(
         name="bigquery_data_set", short_name="bds", default="test_benchmark",
         help=help_wrap(
-            "The Bigquery dataset name where the benchmark will be uploaded."))
+            "The Bigquery dataset_ name where the benchmark will be uploaded."))
 
     flags.DEFINE_string(
         name="bigquery_run_table", short_name="brt", default="benchmark_run",
