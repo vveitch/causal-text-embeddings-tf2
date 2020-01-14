@@ -9,7 +9,7 @@ export NUM_SPLITS=10
 declare -a SIMMODES=('simple')
 
 export BETA0=0.25
-declare -a BETA1S=(1.0 5.0 25.0)
+declare -a BETA1S=(5.0)
 declare -a GAMMAS=(0.0)
 
 for SIMMODEj in "${SIMMODES[@]}"; do
