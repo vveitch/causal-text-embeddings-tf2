@@ -316,15 +316,15 @@ def tmle_missing_outcomes(q0, q1, g0, g1, p_delta, t, y, delta, cross_ent_outcom
             return _psi(q0_old, q1_old, g_old), ic
 
 
-def att_estimates(q_t0, q_t1, g, t, y, prob_t, deps=0.0001):
+def att_estimates(q0, q1, g, t, y, prob_t, deps=0.0001):
     unadjusted_est = unadjusted(t, y)
-    q_only_est = q_only(q_t0, q_t1, t)
-    plugin_est = plugin(q_t0, q_t1, g, prob_t)
-    aiptw_est = aiptw(q_t0, g, t, y, prob_t)
-    tmle_mse_est = one_step_tmle(q_t0, q_t1, g, t, y, cross_ent_outcome=False, deps=deps)
-    tmle_ce_est = one_step_tmle(q_t0, q_t1, g, t, y, cross_ent_outcome=True, deps=deps)
+    q_only_est = q_only(q0, q1, t)
+    plugin_est = plugin(q0, q1, g, prob_t)
+    aiptw_est = aiptw(q0, g, t, y, prob_t)
+    tmle_mse_est = one_step_tmle(q0, q1, g, t, y, cross_ent_outcome=False, deps=deps)
+    tmle_ce_est = one_step_tmle(q0, q1, g, t, y, cross_ent_outcome=True, deps=deps)
 
     estimates = {'unadjusted_est': unadjusted_est, 'q_only': q_only_est, 'plugin': plugin_est,
-                 'tmle_mse': tmle_mse_est, 'tmle_ce': tmle_ce_est, 'aiptw': aiptw_est}
+                 'tmle_mse': tmle_mse_est[0], 'tmle_ce': tmle_ce_est[0], 'aiptw': aiptw_est}
 
     return estimates
