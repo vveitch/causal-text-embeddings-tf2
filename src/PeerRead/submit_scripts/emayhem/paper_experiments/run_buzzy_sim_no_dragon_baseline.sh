@@ -17,7 +17,7 @@ export DATA_FILE=/proj/sml_netapp/dat/undocumented/PeerRead/proc/arxiv-all.tf_re
 export PREDICTION_FILE=$OUTPUT_DIR/predictions.tsv
 
 echo "python -m PeerRead.model.run_causal_bert \
-  --seed=${SPLIT} \
+  --seed=0 \
   --bert_config_file=$BERT_BASE_DIR/bert_config.json \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
   --init_checkpoint=$INIT_FILE \
@@ -30,15 +30,18 @@ echo "python -m PeerRead.model.run_causal_bert \
   --prediction_file=$PREDICTION_FILE \
   --learning_rate=5e-4 \
   --do_masking=True \
-  --simulated=real \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
   --dev_splits=${SPLIT} \
-  --treatment=${TREATMENT}
-"
+  --simulated=attribute \
+  --beta0=${BETA0} \
+  --beta1=${BETA1} \
+  --gamma=${GAMMA} \
+  --simulation_mode=${SIMMODE} \
+  --treatment_loss_weight=0.0"
 
 python -m PeerRead.model.run_causal_bert \
-  --seed=${SPLIT} \
+  --seed=0 \
   --bert_config_file=$BERT_BASE_DIR/bert_config.json \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
   --init_checkpoint=$INIT_FILE \
@@ -46,15 +49,16 @@ python -m PeerRead.model.run_causal_bert \
   --model_dir=${OUTPUT_DIR} \
   --max_seq_length=250 \
   --train_batch_size=32 \
+  --learning_rate=5e-4 \
   --num_train_epochs=10 \
   --prediction_file=$PREDICTION_FILE \
-  --learning_rate=5e-4 \
   --do_masking=True \
-  --simulated=real \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
   --dev_splits=${SPLIT} \
-  --treatment=${TREATMENT}
-
-# --strategy_type=mirror \
-
+  --simulated=attribute \
+  --beta0=${BETA0} \
+  --beta1=${BETA1} \
+  --gamma=${GAMMA} \
+  --simulation_mode=${SIMMODE} \
+  --treatment_loss_weight=0.0

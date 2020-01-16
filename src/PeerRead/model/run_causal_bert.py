@@ -50,6 +50,9 @@ flags.DEFINE_bool(
     "do_masking", True,
     "Whether to randomly mask input words during training (serves as a sort of regularization)")
 
+flags.DEFINE_float("treatment_loss_weight", 1.0, "how to weight the treatment prediction term in the loss")
+
+
 flags.DEFINE_bool(
     "fixed_feature_baseline", False,
     "Whether to use BERT to produced fixed features (no finetuning)")
@@ -274,7 +277,7 @@ def main(_):
         dragon_model.compile(optimizer=optimizer,
                              loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy',
                                    'q1': 'binary_crossentropy'},
-                             loss_weights={'g': 1.0, 'q0': 0.1, 'q1': 0.1},
+                             loss_weights={'g': FLAGS.treatment_loss_weight, 'q0': 0.1, 'q1': 0.1},
                              weighted_metrics=make_dragonnet_metrics())
 
         summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)

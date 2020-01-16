@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-OUTPUT_DIR_BASE=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/PeerRead/buzzy-baselines/fixed-features/
+OUTPUT_DIR_BASE=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/PeerRead/buzzy-baselines/no-dragon/
 mkdir -p ${OUTPUT_DIR_BASE}
 
 export NUM_SPLITS=10
@@ -22,9 +22,9 @@ for SIMMODEj in "${SIMMODES[@]}"; do
                 export SPLIT=${SPLITi}
                 export OUTPUT_DIR=${OUTPUT_DIR_BASE}mode${SIMMODE}/beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}/split${SPLIT}
                 NAME=mode${SIMMODE}.beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}.split${SPLIT}
-                sbatch --job-name=fixedfeatures_${NAME} \
+                sbatch --job-name=nodragon_${NAME} \
                    --output=${OUTPUT_DIR_BASE}${NAME}.out \
-                   ./PeerRead/submit_scripts/emayhem/paper_experiments/run_buzzy_sim_fixed_features.sh
+                   ./PeerRead/submit_scripts/emayhem/paper_experiments/run_buzzy_sim_no_dragon_baseline.sh
             done
         done
     done

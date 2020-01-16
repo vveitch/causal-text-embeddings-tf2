@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -A sml
 #SBATCH -c 12
-#SBATCH -t 12:00:00
+#SBATCH -t 4:00:00
 #SBATCH --gres=gpu:2
 #SBATCH --mail-user=victorveitch@gmail.com
 #SBATCH --mail-type=ALL

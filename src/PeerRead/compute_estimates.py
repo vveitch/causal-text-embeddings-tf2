@@ -100,10 +100,10 @@ def confounding_level():
     with tf.io.gfile.GFile('../out/PeerRead/buzzy-based-sim/estimates.tsv', "w") as writer:
         writer.write(estimate_df.to_csv(sep="\t"))
 
-    print(estimate_df)
+    print(estimate_df.round(2))
 
 
-def main():
+def buzzy_baselines():
     base_dir = '../out/PeerRead/buzzy-baselines/'
     out_file = 'modesimple/beta00.25.beta15.0.gamma0.0'
 
@@ -115,7 +115,15 @@ def main():
     estimates['no_masking'] = dragon_att(os.path.join(base_dir, 'buzzy-based-sim-no-masking', out_file))
 
     estimate_df = pd.DataFrame(estimates)
-    print(estimate_df)
+    print(estimate_df.round(2))
+
+
+def main():
+    estimates={}
+    estimates['buzzy'] = dragon_att('../out/PeerRead/real/o_accepted_t_buzzy_title')
+    estimates['theorem_referenced'] = dragon_att('../out/PeerRead/real/o_accepted_t_theorem_referenced')
+    estimate_df = pd.DataFrame(estimates)
+    print(estimate_df.round(2))
 
 
 if __name__ == '__main__':

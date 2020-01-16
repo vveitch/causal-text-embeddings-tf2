@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -A sml
 #SBATCH -c 12
-#SBATCH -t 12:00:00
+#SBATCH -t 4:00:00
 #SBATCH --gres=gpu:2
 #SBATCH --mail-user=victorveitch@gmail.com
 #SBATCH --mail-type=ALL
@@ -52,7 +52,6 @@ python -m PeerRead.model.run_causal_bert \
   --model_dir=${OUTPUT_DIR} \
   --max_seq_length=250 \
   --train_batch_size=32 \
-  --learning_rate=3e-4 \
   --num_train_epochs=10 \
   --prediction_file=$PREDICTION_FILE \
   --learning_rate=5e-4 \
