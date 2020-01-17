@@ -472,22 +472,22 @@ def make_one_hot_encoder():
 
 
 def make_parser(abs_seq_len=128):
-    context_features = {cf: tf.FixedLenFeature([], dtype=tf.int64) for cf in all_context_features}
+    context_features = {cf: tf.io.FixedLenFeature([], dtype=tf.int64) for cf in all_context_features}
 
     # TODO: check that our segment_ids convention matches Bert
     text_features = {
-        "op_token_ids": tf.FixedLenFeature([abs_seq_len], tf.int64),
-        "op_token_mask": tf.FixedLenFeature([abs_seq_len], tf.int64),
-        "op_segment_ids": tf.FixedLenFeature([abs_seq_len], tf.int64),
-        "resp_token_ids": tf.FixedLenFeature([abs_seq_len], tf.int64),
-        "resp_token_mask": tf.FixedLenFeature([abs_seq_len], tf.int64),
-        "resp_segment_ids": tf.FixedLenFeature([abs_seq_len], tf.int64)
+        "op_token_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
+        "op_token_mask": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
+        "op_segment_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
+        "resp_token_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
+        "resp_token_mask": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
+        "resp_segment_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64)
     }
 
     _name_to_features = {**context_features, **text_features}
 
     def parser(record):
-        tf_example = tf.parse_single_example(
+        tf_example = tf.io.parse_single_example(
             record,
             features=_name_to_features
         )
