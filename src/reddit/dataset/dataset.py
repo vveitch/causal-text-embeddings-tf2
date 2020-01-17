@@ -292,6 +292,47 @@ def make_split_document_labels(num_splits, dev_splits, test_splits):
     return fn
 
 
+def _make_bert_compatifier(do_masking):
+    """
+    Makes a parser to change feature naming to be consistent w/ what's expected by pretrained bert model, i.e. filter
+    down to only features used as bert input, and put data into expected (features, labels) format
+    """
+
+    def bert_compatibility(data):
+        # data['input_word_ids'] = data.pop('maybe_masked_input_ids')
+        # data['input_mask'] = data.pop('token_mask')
+
+        if do_masking:
+            x = {
+                'input_word_ids': data['maybe_masked_input_ids'],
+                'input_mask': data['token_mask'],
+                'input_type_ids': tf.zeros_like(data['token_mask']),  # segment ids
+                'masked_lm_positions': data['masked_lm_positions'],
+                'masked_lm_ids': data['masked_lm_ids'],
+                'masked_lm_weights': data['masked_lm_weights'],
+                # next_sentence_label = 1 if instance.is_random_next else 0
+                'next_sentence_labels': tf.constant([0], tf.int32)
+            }
+
+            # y = data['masked_lm_weights']
+
+        else:
+            x = {
+                'input_word_ids': data['maybe_masked_input_ids'],
+                'input_mask': data['token_mask'],
+                'input_type_ids': tf.zeros_like(data['token_mask']),  # segment ids
+            }
+
+        y = {'outcome': data['outcome'], 'treatment': data['treatment'],
+             'in_dev': data['in_dev'], 'in_test': data['in_test'], 'in_train': data['in_train'],
+             'y0': data['y0'], 'y1': data['y1'],
+             'index': data['index']}
+
+        return x, y
+
+    return bert_compatibility
+
+
 def dataset_processing(dataset, parser, masker, labeler, is_training, num_splits, dev_splits, test_splits, batch_size,
                        filter_test=False,
                        subreddits=None,
@@ -323,7 +364,8 @@ def dataset_processing(dataset, parser, masker, labeler, is_training, num_splits
     data_processing = compose(parser,  # parse from tf_record
                               labeler,  # add a label (unused downstream at time of comment)
                               make_split_document_labels(num_splits, dev_splits, test_splits),  # censor some labels
-                              masker)  # Bert style token masking for unsupervised training
+                              masker,
+                              _make_bert_compatifier(do_masking))  # Bert style token masking for unsupervised training
 
     dataset = dataset.map(data_processing, 4)
 
