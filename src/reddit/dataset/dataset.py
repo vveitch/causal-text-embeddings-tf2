@@ -240,7 +240,7 @@ def make_propensity_based_simulated_labeler(treat_strength, con_strength, noise_
 
 def make_split_document_labels(num_splits, dev_splits, test_splits):
     """
-    Adapts tensorflow dataset to produce additional elements that indicate whether each datapoint is in train, dev,
+    Adapts tensorflow dataset_ to produce additional elements that indicate whether each datapoint is in train, dev,
     or test
 
     Particularly, splits the data into num_split folds, and censors the censored_split fold
@@ -253,7 +253,7 @@ def make_split_document_labels(num_splits, dev_splits, test_splits):
 
     Returns
     -------
-    fn: A function that can be used to map a dataset to censor some of the document labels.
+    fn: A function that can be used to map a dataset_ to censor some of the document labels.
     """
 
     def _tf_in1d(a, b):
@@ -262,17 +262,17 @@ def make_split_document_labels(num_splits, dev_splits, test_splits):
         """
         a = tf.expand_dims(a, 0)
         b = tf.expand_dims(b, 1)
-        return tf.reduce_any(tf.equal(a, b), 1)
+        return tf.reduce_any(input_tensor=tf.equal(a, b), axis=1)
 
     def _tf_scalar_a_in1d_b(a, b):
         """
         Tensorflow equivalent of np.in1d(a,b)
         """
-        return tf.reduce_any(tf.equal(a, b))
+        return tf.reduce_any(input_tensor=tf.equal(a, b))
 
     def fn(data):
         many_split = data['many_split']
-        reduced_split = tf.floormod(many_split, num_splits)  # reduce the many splits to just num_splits
+        reduced_split = tf.math.floormod(many_split, num_splits)  # reduce the many splits to just num_splits
 
         in_dev = _tf_scalar_a_in1d_b(reduced_split, dev_splits)
         in_test = _tf_scalar_a_in1d_b(reduced_split, test_splits)
