@@ -396,11 +396,12 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
                                                    shuffle_buffer_size=shuffle_buffer_size)
             return processed_dataset
 
-        dataset = dataset.apply(
-            tf.data.experimental.parallel_interleave(
-                _dataset_processing,
-                sloppy=is_training,
-                cycle_length=cycle_length))
+        dataset = dataset.interleave(_dataset_processing)
+        # dataset = dataset.apply(
+        #     tf.data.experimental.parallel_interleave(
+        #         _dataset_processing,
+        #         sloppy=is_training,
+        #         cycle_length=cycle_length))
 
         return dataset
 
@@ -498,7 +499,7 @@ def make_parser(abs_seq_len=128):
             t = tf_example[name]
 
             if t.dtype == tf.int64:
-                t = tf.to_int32(t)
+                t = tf.cast(t, dtype=tf.int32)
             tf_example[name] = t
 
         return tf_example
