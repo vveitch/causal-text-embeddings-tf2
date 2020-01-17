@@ -355,7 +355,7 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
                             shuffle_buffer_size=int(1e6), seed=0, labeler=None):
     input_files = []
     for input_pattern in input_files_or_glob.split(","):
-        input_files.extend(tf.gfile.Glob(input_pattern))
+        input_files.extend(tf.io.gfile.Glob(input_pattern))
 
     if labeler is None:
         labeler = make_label()
