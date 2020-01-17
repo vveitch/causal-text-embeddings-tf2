@@ -118,13 +118,16 @@ def buzzy_baselines():
     print(estimate_df.round(2))
 
 
-def main():
+def real():
     estimates={}
     estimates['buzzy'] = dragon_att('../out/PeerRead/real/o_accepted_t_buzzy_title')
     estimates['theorem_referenced'] = dragon_att('../out/PeerRead/real/o_accepted_t_theorem_referenced')
     estimate_df = pd.DataFrame(estimates)
     print(estimate_df.round(2))
 
+def main():
+    # confounding_level()
+    real()
 
 if __name__ == '__main__':
     main()
