@@ -18,7 +18,7 @@ try:
 except ImportError:
     import numpy.random as random
 
-import bert.tokenization as tokenization
+from tf_official.nlp.bert import tokenization
 from reddit.dataset.sentence_masking import create_masked_lm_predictions
 import numpy as np
 from scipy.special import logit, expit
