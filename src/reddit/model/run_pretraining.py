@@ -31,7 +31,7 @@ from tf_official.nlp import bert_models, bert_modeling as modeling, optimization
 from tf_official.nlp.bert import tokenization, common_flags, model_saving_utils, input_pipeline
 from tf_official.utils.misc import tpu_lib
 
-from reddit.dataset.dataset import make_dataset_fn_from_file
+from reddit.dataset.dataset import make_input_fn_from_file
 
 flags.DEFINE_string('input_files', None,
                     'File path to retrieve training data for pre-training.')
@@ -132,7 +132,7 @@ def run_customized_training(strategy,
         vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
     def train_input_fn():
-        train_input_fn = make_dataset_fn_from_file(
+        train_input_fn = make_input_fn_from_file(
                     input_files_or_glob=FLAGS.input_files,
                     seq_length=FLAGS.max_seq_length,
                     num_splits=1,
