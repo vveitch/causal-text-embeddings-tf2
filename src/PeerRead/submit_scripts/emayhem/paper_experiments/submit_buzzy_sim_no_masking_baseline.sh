@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-OUTPUT_DIR_BASE=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/PeerRead/buzzy-based-sim-no-masking/
+OUTPUT_DIR_BASE=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/PeerRead/buzzy-baselines/no-init/
 mkdir -p ${OUTPUT_DIR_BASE}
 
 export NUM_SPLITS=10
@@ -9,7 +9,7 @@ export NUM_SPLITS=10
 declare -a SIMMODES=('simple')
 
 export BETA0=0.25
-declare -a BETA1S=(1.0 5.0 25.0)
+declare -a BETA1S=(5.0)
 declare -a GAMMAS=(0.0)
 
 for SIMMODEj in "${SIMMODES[@]}"; do

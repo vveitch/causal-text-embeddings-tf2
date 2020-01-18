@@ -49,7 +49,7 @@ def callstack_sampling(filename, interval=None):
   """Periodically samples the Python callstack.
 
   Args:
-    filename: the filename
+    filename: the tsv_file
     interval: the sampling interval, in seconds. Defaults to 0.001.
 
   Yields:

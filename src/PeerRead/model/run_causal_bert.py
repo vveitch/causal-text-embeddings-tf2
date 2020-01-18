@@ -40,15 +40,20 @@ from PeerRead.dataset.dataset import make_dataset_fn_from_file, make_real_labele
 common_flags.define_common_bert_flags()
 
 flags.DEFINE_enum(
-    'mode', 'train_and_eval', ['train_and_eval', 'export_only'],
-    'One of {"train_and_eval", "export_only"}. `train_and_eval`: '
-    'trains the model and evaluates in the meantime. '
-    '`export_only`: will take the latest checkpoint inside '
-    'model_dir and export a `SavedModel`.')
+    'mode', 'train_and_predict', ['train_and_predict', 'predict_only'],
+    'One of {"train_and_predict", "predict_only"}. `train_and_predict`: '
+    'trains the model and make predictions. '
+    '`predict_only`: loads a trained model and makes predictions.')
+
+flags.DEFINE_string('saved_path', None,
+                    'Relevant only if mode is predict_only. Path to pre-trained model')
 
 flags.DEFINE_bool(
     "do_masking", True,
     "Whether to randomly mask input words during training (serves as a sort of regularization)")
+
+flags.DEFINE_float("treatment_loss_weight", 1.0, "how to weight the treatment prediction term in the loss")
+
 
 flags.DEFINE_bool(
     "fixed_feature_baseline", False,
@@ -255,55 +260,55 @@ def main(_):
         dragon_model.optimizer = tf.keras.optimizers.SGD(learning_rate=FLAGS.train_batch_size * initial_lr)
         return dragon_model, core_model
 
-    # training. strategy.scope context allows use of multiple devices
-    do_training = False
-    with strategy.scope():
-        keras_train_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
+    if FLAGS.mode == 'train_and_predict':
+        # training. strategy.scope context allows use of multiple devices
+        do_training = False
+        with strategy.scope():
+            keras_train_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
 
-        dragon_model, core_model = _get_dragon_model(FLAGS.do_masking)
-        optimizer = dragon_model.optimizer
+            dragon_model, core_model = _get_dragon_model(FLAGS.do_masking)
+            optimizer = dragon_model.optimizer
 
-        if FLAGS.init_checkpoint:
-            checkpoint = tf.train.Checkpoint(model=core_model)
-            checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
+            if FLAGS.init_checkpoint:
+                checkpoint = tf.train.Checkpoint(model=core_model)
+                checkpoint.restore(FLAGS.init_checkpoint).assert_existing_objects_matched()
 
-        latest_checkpoint = tf.train.latest_checkpoint(FLAGS.model_dir)
-        if latest_checkpoint:
-            dragon_model.load_weights(latest_checkpoint)
+            latest_checkpoint = tf.train.latest_checkpoint(FLAGS.model_dir)
+            if latest_checkpoint:
+                dragon_model.load_weights(latest_checkpoint)
 
-        dragon_model.compile(optimizer=optimizer,
-                             loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy',
-                                   'q1': 'binary_crossentropy'},
-                             loss_weights={'g': 1.0, 'q0': 0.1, 'q1': 0.1},
-                             weighted_metrics=make_dragonnet_metrics())
+            dragon_model.compile(optimizer=optimizer,
+                                 loss={'g': 'binary_crossentropy', 'q0': 'binary_crossentropy',
+                                       'q1': 'binary_crossentropy'},
+                                 loss_weights={'g': FLAGS.treatment_loss_weight, 'q0': 0.1, 'q1': 0.1},
+                                 weighted_metrics=make_dragonnet_metrics())
 
-        summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)
-        checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
-        checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir, save_weights_only=True, period=5)
+            summary_callback = tf.keras.callbacks.TensorBoard(FLAGS.model_dir, update_freq=128)
+            checkpoint_dir = os.path.join(FLAGS.model_dir, 'model_checkpoint.{epoch:02d}')
+            checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_dir, save_weights_only=True, period=10)
 
-        callbacks = [summary_callback, checkpoint_callback]
+            callbacks = [summary_callback, checkpoint_callback]
 
-        dragon_model.fit(
-            x=keras_train_data,
-            # validation_data=evaluation_dataset,
-            steps_per_epoch=steps_per_epoch,
-            epochs=epochs,
-            # vailidation_steps=eval_steps,
-            callbacks=callbacks)
+            dragon_model.fit(
+                x=keras_train_data,
+                # validation_data=evaluation_dataset,
+                steps_per_epoch=steps_per_epoch,
+                epochs=epochs,
+                # vailidation_steps=eval_steps,
+                callbacks=callbacks)
 
-    # save a final model checkpoint (so we can restore weights into model w/o training idiosyncracies)
-    if FLAGS.model_export_path:
-        model_export_path = FLAGS.model_export_path
+        # save a final model checkpoint (so we can restore weights into model w/o training idiosyncracies)
+        if FLAGS.model_export_path:
+            model_export_path = FLAGS.model_export_path
+        else:
+            model_export_path = os.path.join(FLAGS.model_dir, 'trained/dragon.ckpt')
+
+        checkpoint = tf.train.Checkpoint(model=dragon_model)
+        saved_path = checkpoint.save(model_export_path)
     else:
-        model_export_path = os.path.join(FLAGS.model_dir, 'trained/dragon.ckpt')
-
-    checkpoint = tf.train.Checkpoint(model=dragon_model)
-    saved_path = checkpoint.save(model_export_path)
+        saved_path = FLAGS.saved_path
 
     # make predictions and write to file
-    # NOTE: theory suggests we should make predictions on heldout data ("cross fitting" or "sample splitting")
-    # but our experiments showed best results by just reusing the data
-    # You can accomodate sample splitting by using the splitting arguments for the dataset_ creation
 
     # create data and model w/o masking
     eval_data = make_dataset(is_training=False, do_masking=False)
@@ -311,6 +316,8 @@ def main(_):
     # reload the model weights (necessary because we've obliterated the masking)
     checkpoint = tf.train.Checkpoint(model=dragon_model)
     checkpoint.restore(saved_path).assert_existing_objects_matched()
+    # loss added as simple hack to bizzarre keras bug that requires compile for predict, and a loss for compile
+    dragon_model.add_loss(lambda: 0)
     dragon_model.compile()
 
     outputs = dragon_model.predict(x=eval_data)
