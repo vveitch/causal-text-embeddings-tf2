@@ -669,75 +669,55 @@ def make_input_fn_from_tfrecord(tokenizer, tfrecord='../dat/reddit/proc.tf_recor
 
 
 def main():
-    tf.enable_eager_execution()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--shuffle_buffer_size', type=int, default=100)
+    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--max_abs_len', type=int, default=250)
 
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('--shuffle_buffer_size', type=int, default=100)
-    # parser.add_argument('--batch_size', type=int, default=16)
-    # parser.add_argument('--max_abs_len', type=int, default=250)
-    #
-    # args = parser.parse_args()
+    args = parser.parse_args()
 
     # for easy debugging
-    # tfrecord_file = '../dat/reddit/proc.tf_record'
-    tfrecord_file = '../dat/reddit/proc.tf_record'
-    vocab_file = "../../bert/pre-trained/uncased_L-12_H-768_A-12/vocab.txt"
+    # tsv_file = "../../dat/PeerRead/proc/acl_2017.tf_record"
+    # tsv_file = glob.glob('/home/victor/Documents/causal-spe-embeddings/dat/PeerRead/proc/*.tf_record')
+    filename = '/proj/sml_netapp/dat/undocumented/reddit/proc.tf_record'
+
+    # bert_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/1",
+    #                             trainable=True)
+    # vocab_file = bert_layer.resolved_object.vocab_file.asset_path.numpy()
+    vocab_file = '/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/uncased_L-12_H-768_A-12/vocab.txt'
+
     tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
-    # labeler = make_subreddit_based_simulated_labeler(1.0, 1.0, 1.0, setting="simple", seed=0)
-    # labeler = make_log_scores()
-    base_propensities_path = '~/electric_mayhem_logs/scratch/reddit_logs/prop_sim/propensity_source/test_results_keto.tsv'
-    output = pd.read_csv(base_propensities_path, '\t')
-    base_propensity_scores = output['treatment_probability'].values
-    example_indices = output['index'].values
 
-    labeler = make_propensity_based_simulated_labeler(1.0, 1.0, 1.0,
-                                            base_propensity_scores,
-                                                      example_indices,
-                                                      exogeneous_con=0.,
-                                            setting="simple", seed=42)
+    num_splits = 10
+    # dev_splits = [0]
+    # test_splits = [0]
+    dev_splits = []
+    test_splits = [1, 2]
 
-    input_fn = make_input_fn_from_file(
-        input_files_or_glob=tfrecord_file,
-        seq_length=128,
-        num_splits=10,
-        dev_splits=1,
-        test_splits=2,
-        tokenizer=tokenizer,
-        is_training=True,
-        filter_test=False,
-        # subreddits=[13, 8, 6],
-        subreddits=[13],
-        shuffle_buffer_size=int(1e6),  # note: bert hardcoded this, and I'm following suit
-        seed=0,
-        labeler=labeler)
+    input_dataset_from_filenames = make_input_fn_from_file(filename,
+                                                             250,
+                                                             num_splits,
+                                                             dev_splits,
+                                                             test_splits,
+                                                             tokenizer,
+                                                             do_masking=False,
+                                                             is_training=True,
+                                                             filter_test=False,
+                                                             shuffle_buffer_size=25000,
+                                                             labeler=None,
+                                                             seed=0)
+    params = {'batch_size': 10000}
+    dataset = input_dataset_from_filenames(params)
 
-    # input_fn = make_input_fn_from_tfrecord(tokenizer=tokenizer, tfrecord=tfrecord_file)
+    print(dataset.element_spec)
 
-    params = {'batch_size': 64}
+    for val in dataset.take(1):
+        sample = val
 
-    dataset = input_fn(params)
-    sampler = dataset.make_one_shot_iterator()
-    for _ in range(25):
-        sample = sampler.get_next()
-        print(sample)
-        # print('Subreddit: {}'.format(sample['subreddit']))
-        # print('index: {}'.format(sample['index']))
-        # print('Outcome: {}'.format(sample['outcome']))
-        # print('score: {}'.format(sample['score']))
-        # print('score: {}'.format(tf.reduce_mean(sample['score'])))
-        # log_score = sample['log_score'].numpy()
-        # print('log_score: {}'.format(log_score.std()))
+    sample = next(iter(dataset))
+    print(tf.unique(sample[1]['treatment']))
 
-        # in_train = sample['in_train']
-        # in_dev = sample['in_dev']
-        # norm_score = (tf.cast(score, tf.float32)-24.)/167.2
-        # print('in_dev: {}'.format(in_dev))
-        # print('in_train: {}'.format(in_train))
-
-        # outcome = sample['outcome']
-        # print('outcome: {}'.format(outcome))
-        # treatment = sample['treatment']
-        # print('treatment: {}'.format(treatment))
+    # print(sample[0]['masked_lm_ids'])
 
 
 if __name__ == "__main__":
