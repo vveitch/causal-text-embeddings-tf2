@@ -333,7 +333,7 @@ def _make_bert_compatifier(do_masking):
     return bert_compatibility
 
 
-def dataset_processing(dataset, parser, masker, labeler, is_training, num_splits, dev_splits, test_splits, batch_size,
+def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training, num_splits, dev_splits, test_splits, batch_size,
                        filter_test=False,
                        subreddits=None,
                        shuffle_buffer_size=100):
