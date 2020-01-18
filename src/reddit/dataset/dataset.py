@@ -88,6 +88,23 @@ def compose(*fns):
 DS: adding a number of data processing fns for supervised task
 '''
 
+def make_null_labeler():
+    """
+    labeler function that returns meaningless labels. Convenient for pre-training, where the labels are totally unused
+        :return:
+    """
+
+    def labeler(data):
+        return {**data, 'outcome': tf.zeros([1]), 'y0': tf.zeros([1]), 'y1': tf.zeros([1]), 'treatment': tf.zeros([1])}
+
+    # def wacky_labeler(data):
+    #     label_ids = tf.greater_equal(data['num_authors'], 4)
+    #     label_ids = tf.cast(label_ids, tf.int32)
+    #     return {**data, 'label_ids': label_ids}
+
+    return labeler
+
+
 
 def make_label():
     """
@@ -410,7 +427,7 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
         input_files.extend(tf.io.gfile.glob(input_pattern))
 
     if labeler is None:
-        labeler = make_label()
+        labeler = make_null_labeler()
 
     if do_masking:
         masker = make_input_id_masker(tokenizer, seed)  # produce masked subsets for unsupervised training
