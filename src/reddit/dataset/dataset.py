@@ -701,7 +701,7 @@ def main():
                                                              dev_splits,
                                                              test_splits,
                                                              tokenizer,
-                                                             do_masking=False,
+                                                             do_masking=True,
                                                              is_training=True,
                                                              filter_test=False,
                                                              shuffle_buffer_size=25000,
@@ -716,7 +716,7 @@ def main():
         sample = val
 
     sample = next(iter(dataset))
-    print(tf.unique(sample[1]['treatment']))
+    print(sample)
 
     # print(sample[0]['masked_lm_ids'])
 
