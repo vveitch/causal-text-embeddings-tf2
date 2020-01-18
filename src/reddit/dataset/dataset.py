@@ -305,8 +305,8 @@ def _make_bert_compatifier(do_masking):
         if do_masking:
             x = {
                 'input_word_ids': data['maybe_masked_input_ids'],
-                'input_mask': data['token_mask'],
-                'input_type_ids': tf.zeros_like(data['token_mask']),  # segment ids
+                'input_mask': data['op_token_mask'],
+                'input_type_ids': tf.zeros_like(data['op_token_mask']),  # segment ids
                 'masked_lm_positions': data['masked_lm_positions'],
                 'masked_lm_ids': data['masked_lm_ids'],
                 'masked_lm_weights': data['masked_lm_weights'],
@@ -319,8 +319,8 @@ def _make_bert_compatifier(do_masking):
         else:
             x = {
                 'input_word_ids': data['maybe_masked_input_ids'],
-                'input_mask': data['token_mask'],
-                'input_type_ids': tf.zeros_like(data['token_mask']),  # segment ids
+                'input_mask': data['op_token_mask'],
+                'input_type_ids': tf.zeros_like(data['op_token_mask']),  # segment ids
             }
 
         y = {'outcome': data['outcome'], 'treatment': data['treatment'],
