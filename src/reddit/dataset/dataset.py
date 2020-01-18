@@ -450,12 +450,11 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
         # make the record parsing ops
         max_abstract_len = seq_length
 
-        parser = make_parser()  # parse the tf_record
+        parser = make_parser(abs_seq_len=max_abstract_len)  # parse the tf_record
         unsupervised_parser = make_bert_unsupervised_parser()  # concats op and response together
         encoder = make_one_hot_encoder()
 
         parser = compose(parser, unsupervised_parser, encoder)
-        masker = make_input_id_masker(tokenizer, seed)  # produce masked subsets for unsupervised training
 
         # for use with interleave
         def _dataset_processing(input):
@@ -604,13 +603,13 @@ def make_bert_unsupervised_parser():
         resp_segment_ids = data['resp_segment_ids']
 
         input_ids = tf.concat([op_token_ids, resp_token_ids], axis=0)
-        input_mask = tf.concat([op_token_mask, resp_token_mask], axis=0)
+        token_mask = tf.concat([op_token_mask, resp_token_mask], axis=0)
         segment_ids = tf.concat([op_segment_ids, resp_segment_ids], axis=0)
 
         return {
             **data,
             'input_ids': input_ids,
-            'input_mask': input_mask,
+            'token_mask': token_mask,
             'segment_ids': segment_ids,
         }
 
@@ -720,7 +719,7 @@ def main():
     sampler = dataset.make_one_shot_iterator()
     for _ in range(25):
         sample = sampler.get_next()
-        # print(sample)
+        print(sample)
         # print('Subreddit: {}'.format(sample['subreddit']))
         # print('index: {}'.format(sample['index']))
         # print('Outcome: {}'.format(sample['outcome']))
@@ -735,10 +734,10 @@ def main():
         # print('in_dev: {}'.format(in_dev))
         # print('in_train: {}'.format(in_train))
 
-        outcome = sample['outcome']
-        print('outcome: {}'.format(outcome))
-        treatment = sample['treatment']
-        print('treatment: {}'.format(treatment))
+        # outcome = sample['outcome']
+        # print('outcome: {}'.format(outcome))
+        # treatment = sample['treatment']
+        # print('treatment: {}'.format(treatment))
 
 
 if __name__ == "__main__":
