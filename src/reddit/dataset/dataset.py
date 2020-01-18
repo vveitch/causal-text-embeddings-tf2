@@ -389,9 +389,19 @@ def dataset_processing(dataset, parser, masker, labeler, is_training, num_splits
     return dataset
 
 
+def null_masker(data):
+    return {
+        **data,
+        'maybe_masked_input_ids': data['token_ids'],
+        'masked_lm_positions': tf.zeros_like(data['token_ids']),
+        'masked_lm_ids': tf.zeros_like(data['token_ids']),
+        'masked_lm_weights': tf.zeros_like(data['token_ids'])
+    }
+
 def make_input_fn_from_file(input_files_or_glob, seq_length,
                             num_splits, dev_splits, test_splits,
                             tokenizer, is_training,
+                            do_masking=True,
                             filter_test=False,
                             subreddits=None,
                             shuffle_buffer_size=int(1e6), seed=0, labeler=None):
@@ -401,6 +411,11 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
 
     if labeler is None:
         labeler = make_label()
+
+    if do_masking:
+        masker = make_input_id_masker(tokenizer, seed)  # produce masked subsets for unsupervised training
+    else:
+        masker = null_masker
 
     def input_fn(params):
         batch_size = params["batch_size"]
@@ -430,6 +445,7 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
             input_dataset = tf.data.TFRecordDataset(input)
             processed_dataset = dataset_processing(input_dataset,
                                                    parser, masker, labeler,
+                                                   do_masking,
                                                    is_training,
                                                    num_splits, dev_splits, test_splits,
                                                    batch_size,
