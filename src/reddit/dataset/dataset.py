@@ -452,10 +452,9 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
         max_abstract_len = seq_length
 
         parser = make_parser(abs_seq_len=max_abstract_len)  # parse the tf_record
-        unsupervised_parser = make_bert_unsupervised_parser()  # concats op and response together
         encoder = make_one_hot_encoder()
 
-        parser = compose(parser, unsupervised_parser, encoder)
+        parser = compose(parser, encoder)
 
         # for use with interleave
         def _dataset_processing(input):
@@ -472,12 +471,6 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
             return processed_dataset
 
         dataset = dataset.interleave(_dataset_processing)
-        # dataset = dataset.apply(
-        #     tf.data.experimental.parallel_interleave(
-        #         _dataset_processing,
-        #         sloppy=is_training,
-        #         cycle_length=cycle_length))
-
         return dataset
 
     return input_fn
@@ -487,49 +480,21 @@ def make_input_id_masker(tokenizer, seed):
     # (One of) Bert's unsupervised objectives is to mask some fraction of the input words and predict the masked words
 
     def masker(data):
-        input_ids = data['input_ids']
+        token_ids = data['token_ids']
         maybe_masked_input_ids, masked_lm_positions, masked_lm_ids, masked_lm_weights = create_masked_lm_predictions(
-            input_ids,
+            token_ids,
             # pre-training defaults from Bert docs
             masked_lm_prob=0.15,
             max_predictions_per_seq=20,
             vocab=tokenizer.vocab,
             seed=seed)
-
-        op_input_ids = data['op_token_ids']
-        op_maybe_masked_input_ids, op_masked_lm_positions, op_masked_lm_ids, op_masked_lm_weights = create_masked_lm_predictions(
-            op_input_ids,
-            # pre-training defaults from Bert docs
-            masked_lm_prob=0.15,
-            max_predictions_per_seq=20,
-            vocab=tokenizer.vocab,
-            seed=seed)
-
-        resp_input_ids = data['resp_token_ids']
-        resp_maybe_masked_input_ids, resp_masked_lm_positions, resp_masked_lm_ids, resp_masked_lm_weights = create_masked_lm_predictions(
-            resp_input_ids,
-            # pre-training defaults from Bert docs
-            masked_lm_prob=0.15,
-            max_predictions_per_seq=20,
-            vocab=tokenizer.vocab,
-            seed=seed)
-
         return {
             **data,
             'maybe_masked_input_ids': maybe_masked_input_ids,
             'masked_lm_positions': masked_lm_positions,
             'masked_lm_ids': masked_lm_ids,
-            'masked_lm_weights': masked_lm_weights,
-            'op_maybe_masked_input_ids': op_maybe_masked_input_ids,
-            'op_masked_lm_positions': op_masked_lm_positions,
-            'op_masked_lm_ids': op_masked_lm_ids,
-            'op_masked_lm_weights': op_masked_lm_weights,
-            'resp_maybe_masked_input_ids': resp_maybe_masked_input_ids,
-            'resp_masked_lm_positions': resp_masked_lm_positions,
-            'resp_masked_lm_ids': resp_masked_lm_ids,
-            'resp_masked_lm_weights': resp_masked_lm_weights
+            'masked_lm_weights': masked_lm_weights
         }
-
     return masker
 
 
@@ -552,12 +517,9 @@ def make_parser(abs_seq_len=128):
 
     # TODO: check that our segment_ids convention matches Bert
     text_features = {
-        "op_token_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
-        "op_token_mask": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
-        "op_segment_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
-        "resp_token_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
-        "resp_token_mask": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
-        "resp_segment_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64)
+        "token_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
+        "token_mask": tf.io.FixedLenFeature([abs_seq_len], tf.int64)
+        # "segment_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64)
     }
 
     _name_to_features = {**context_features, **text_features}
@@ -580,41 +542,6 @@ def make_parser(abs_seq_len=128):
         return tf_example
 
     return parser
-
-
-def make_bert_unsupervised_parser():
-    """
-
-    :return: further parsing to move things into the form expected by unsupervised bert
-    """
-
-    def unsupervised_parser(data):
-        """
-        1. concat all op and response stuff
-        2. pass this into masker
-
-        :param data:
-        :return:
-        """
-        op_token_ids = data['op_token_ids']
-        op_token_mask = data['op_token_mask']
-        op_segment_ids = data['op_segment_ids']
-        resp_token_ids = data['resp_token_ids']
-        resp_token_mask = data['resp_token_mask']
-        resp_segment_ids = data['resp_segment_ids']
-
-        input_ids = tf.concat([op_token_ids, resp_token_ids], axis=0)
-        token_mask = tf.concat([op_token_mask, resp_token_mask], axis=0)
-        segment_ids = tf.concat([op_segment_ids, resp_segment_ids], axis=0)
-
-        return {
-            **data,
-            'input_ids': input_ids,
-            'token_mask': token_mask,
-            'segment_ids': segment_ids,
-        }
-
-    return unsupervised_parser
 
 
 def make_normalize_score():
@@ -673,7 +600,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--shuffle_buffer_size', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--max_abs_len', type=int, default=250)
+    parser.add_argument('--max_abs_len', type=int, default=128)
 
     args = parser.parse_args()
 
@@ -696,7 +623,7 @@ def main():
     test_splits = [1, 2]
 
     input_dataset_from_filenames = make_input_fn_from_file(filename,
-                                                             250,
+                                                             args.max_abs_len,
                                                              num_splits,
                                                              dev_splits,
                                                              test_splits,
