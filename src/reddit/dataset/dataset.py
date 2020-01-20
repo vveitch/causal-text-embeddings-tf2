@@ -323,8 +323,8 @@ def _make_bert_compatifier(do_masking):
         if do_masking:
             x = {
                 'input_word_ids': data['maybe_masked_input_ids'],
-                'input_mask': data['token_mask'],
-                'input_type_ids': tf.zeros_like(data['token_mask']),  # segment ids
+                'input_mask': data['op_token_mask'],
+                'input_type_ids': tf.zeros_like(data['op_token_mask']),  # segment ids
                 'masked_lm_positions': data['masked_lm_positions'],
                 'masked_lm_ids': data['masked_lm_ids'],
                 'masked_lm_weights': data['masked_lm_weights'],
@@ -337,8 +337,8 @@ def _make_bert_compatifier(do_masking):
         else:
             x = {
                 'input_word_ids': data['maybe_masked_input_ids'],
-                'input_mask': data['token_mask'],
-                'input_type_ids': tf.zeros_like(data['token_mask']),  # segment ids
+                'input_mask': data['op_token_mask'],
+                'input_type_ids': tf.zeros_like(data['op_token_mask']),  # segment ids
             }
 
         y = {'outcome': data['outcome'], 'treatment': data['treatment'],
@@ -480,7 +480,7 @@ def make_input_id_masker(tokenizer, seed):
     # (One of) Bert's unsupervised objectives is to mask some fraction of the input words and predict the masked words
 
     def masker(data):
-        token_ids = data['token_ids']
+        token_ids = data['op_token_ids']
         maybe_masked_input_ids, masked_lm_positions, masked_lm_ids, masked_lm_weights = create_masked_lm_predictions(
             token_ids,
             # pre-training defaults from Bert docs
@@ -517,8 +517,8 @@ def make_parser(abs_seq_len=128):
 
     # TODO: check that our segment_ids convention matches Bert
     text_features = {
-        "token_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
-        "token_mask": tf.io.FixedLenFeature([abs_seq_len], tf.int64)
+        "op_token_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64),
+        "op_token_mask": tf.io.FixedLenFeature([abs_seq_len], tf.int64)
         # "segment_ids": tf.io.FixedLenFeature([abs_seq_len], tf.int64)
     }
 
