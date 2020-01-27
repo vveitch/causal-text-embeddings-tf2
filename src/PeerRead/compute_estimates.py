@@ -109,10 +109,11 @@ def buzzy_baselines():
 
     estimates = {}
     estimates['baseline'] = dragon_att(os.path.join(base_dir, 'buzzy', out_file))
-    # todo: some bug in fixed features model
-    # estimates['fixed_features'] = dragon_att(os.path.join(base_dir, 'buzzy-based-sim-fixed-features', out_file))
-    estimates['no_pretrain'] = dragon_att(os.path.join(base_dir, 'buzzy-based-sim-no-init-baseline', out_file))
-    estimates['no_masking'] = dragon_att(os.path.join(base_dir, 'buzzy-based-sim-no-masking', out_file))
+    estimates['fixed_features'] = dragon_att(os.path.join(base_dir, 'fixed-features', out_file))
+    estimates['no_pretrain'] = dragon_att(os.path.join(base_dir, 'no-init', out_file))
+    estimates['no_masking'] = dragon_att(os.path.join(base_dir, 'no-masking', out_file))
+    estimates['no_dragon'] = dragon_att(os.path.join(base_dir, 'no-dragon', out_file))
+
 
     estimate_df = pd.DataFrame(estimates)
     print(estimate_df.round(2))
@@ -126,8 +127,9 @@ def real():
     print(estimate_df.round(2))
 
 def main():
-    # confounding_level()
-    real()
+    # estimates = confounding_level()
+    # estimates = real()
+    estimates = buzzy_baselines()
 
 if __name__ == '__main__':
     main()

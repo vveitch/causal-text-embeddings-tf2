@@ -112,7 +112,7 @@ def _make_one_step_tmle_helpers(prob_t, cross_ent_outcome=False, deps=0.001):
     return _perturb_g_and_q, _loss
 
 
-def one_step_tmle(q_t0, q_t1, g, t, y, cross_ent_outcome=False, deps=0.001):
+def one_step_tmle(q_t0, q_t1, g, t, y, cross_ent_outcome=False, deps=0.001, max_iter=5000):
     """
     Computes the tmle for the ATT (equivalently: direct effect)
 
@@ -156,7 +156,7 @@ def one_step_tmle(q_t0, q_t1, g, t, y, cross_ent_outcome=False, deps=0.001):
     # old_loss = np.inf  # this is the thing used by Rose' implementation
     old_loss = _loss(full_q, g, y, t)
 
-    while True:
+    for i in range(max_iter):
         perturbed_q0, perturbed_q1, perturbed_q, perturbed_g = _perturb_g_and_q(q0_old, q1_old, g_old, t)
 
         new_loss = _loss(perturbed_q, perturbed_g, y, t)
@@ -189,6 +189,12 @@ def one_step_tmle(q_t0, q_t1, g, t, y, cross_ent_outcome=False, deps=0.001):
             g_old = perturbed_g
 
             old_loss = new_loss
+
+    print("Warning: max number of iterations reached")
+    q_old = (1 - t) * q0_old + t * q1_old
+    ic = ((t - (1 - t) * g_old / (1 - g_old)) * (y - q_old)
+          + t * (q1_old - q0_old - _psi(q0_old, q1_old, g_old))) / prob_t
+    return _psi(q0_old, q1_old, g_old), ic
 
 
 def _make_tmle_missing_outcomes_helpers(prob_t, cross_ent_outcome=False, deps=0.001):
