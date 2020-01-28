@@ -4,7 +4,7 @@ OUTPUT_DIR_BASE=../out/
 mkdir -p ${OUTPUT_DIR_BASE}
 # export MODE=train_only
 
-export NUM_SPLITS=1
+export NUM_SPLITS=5
 
 #declare -a SIMMODES=('simple' 'multiplicative' 'interaction')
 declare -a SIMMODES=('simple')
