@@ -34,7 +34,7 @@ from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
 from causal_bert.data_utils import dataset_to_pandas_df, filter_training
 
-from reddit.dataset.dataset import make_dataset_fn_from_file, make_real_labeler, make_subreddit_based_simulated_labeler
+from reddit.dataset.dataset import make_input_fn_from_file, make_real_labeler, make_subreddit_based_simulated_labeler
 
 common_flags.define_common_bert_flags()
 
@@ -144,7 +144,7 @@ def make_dataset(is_training: bool, do_masking=False):
     dev_splits = [int(s) for s in str.split(FLAGS.dev_splits)]
     test_splits = [int(s) for s in str.split(FLAGS.test_splits)]
 
-    train_input_fn = make_dataset_fn_from_file(
+    train_input_fn = make_input_fn_from_file(
         input_files_or_glob=FLAGS.input_files,
         seq_length=FLAGS.max_seq_length,
         num_splits=FLAGS.num_splits,
