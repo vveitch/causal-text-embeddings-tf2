@@ -40,7 +40,7 @@ common_flags.define_common_bert_flags()
 
 #REMEMBER TO CHANGE THIS BACK
 flags.DEFINE_enum(
-    'mode', 'train_only', ['train_only', 'train_and_predict', 'predict_only'],
+    'mode', 'train_and_predict', ['train_only', 'train_and_predict', 'predict_only'],
     'One of {"train_and_predict", "predict_only"}. `train_and_predict`: '
     'trains the model and make predictions. '
     '`predict_only`: loads a trained model and makes predictions.')
