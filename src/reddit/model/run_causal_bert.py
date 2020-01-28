@@ -250,7 +250,7 @@ def main(_):
         dragon_model.optimizer = tf.keras.optimizers.SGD(learning_rate=FLAGS.train_batch_size * initial_lr)
         return dragon_model, core_model
 
-    if FLAGS.mode == 'train_and_predict':
+    if FLAGS.mode == 'train_and_predict' or FLAGS.mode == 'train_only': 
         # training. strategy.scope context allows use of multiple devices
         do_training = False
         with strategy.scope():
