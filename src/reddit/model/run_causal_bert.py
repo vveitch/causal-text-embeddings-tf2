@@ -194,7 +194,7 @@ def make_dragonnet_metrics():
 
 def main(_):
     # Users should always run this script under TF 2.x
-    assert tf.version.VERSION.startswith('2.1')
+    assert tf.version.VERSION.startswith('2.')
     tf.random.set_seed(FLAGS.seed)
 
     # with tf.io.gfile.GFile(FLAGS.input_meta_data_path, 'rb') as reader:
