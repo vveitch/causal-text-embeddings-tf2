@@ -34,7 +34,7 @@ from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
 from causal_bert.data_utils import dataset_to_pandas_df, filter_training
 
-from PeerRead.dataset.dataset import make_dataset_fn_from_file, make_real_labeler, make_subreddit_based_simulated_labeler
+from reddit.dataset.dataset import make_dataset_fn_from_file, make_real_labeler, make_subreddit_based_simulated_labeler
 
 common_flags.define_common_bert_flags()
 
@@ -68,7 +68,7 @@ flags.DEFINE_string(
     'Path to file that contains meta data about input '
     'to be used for training and evaluation.')
 flags.DEFINE_integer(
-    'max_seq_length', 250,
+    'max_seq_length', 128,
     'The maximum total input sequence length after WordPiece tokenization. '
     'Sequences longer than this will be truncated, and sequences shorter '
     'than this will be padded.')
