@@ -34,7 +34,7 @@ from tf_official.nlp.bert import tokenization, common_flags, model_saving_utils
 from tf_official.utils.misc import tpu_lib
 from causal_bert import bert_models
 
-from reddit.dataset.dataset import make_dataset_fn_from_file, make_length_labeler
+from reddit.dataset.dataset import make_input_fn_from_file
 
 common_flags.define_common_bert_flags()
 
@@ -109,23 +109,20 @@ flags.DEFINE_string("prediction_file", "../output/predictions.tsv", "path where 
 FLAGS = flags.FLAGS
 
 
-def _keras_format(features, labels):
-    # features, labels = sample
-    length = tf.cast(labels['length'], tf.float32)
-    labels = {'y': length}
-    return features, labels
+def _make_length_labels(features, labels):
+    post_length = tf.reduce_sum(features['input_mask'])
+    labels.update({'y':tf.cast(post_length, tf.float32)})
+    return features,labels
 
 
 def make_dataset(is_training: bool, do_masking=False):
-    labeler = make_length_labeler()
-
     tokenizer = tokenization.FullTokenizer(
         vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
     dev_splits = [int(s) for s in str.split(FLAGS.dev_splits)]
     test_splits = [int(s) for s in str.split(FLAGS.test_splits)]
 
-    train_input_fn = make_dataset_fn_from_file(
+    train_input_fn = make_input_fn_from_file(
         input_files_or_glob=FLAGS.input_files,
         seq_length=FLAGS.max_seq_length,
         num_splits=FLAGS.num_splits,
@@ -135,13 +132,12 @@ def make_dataset(is_training: bool, do_masking=False):
         do_masking=do_masking,
         is_training=is_training,
         shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
-        seed=FLAGS.seed,
-        labeler=labeler)
+        seed=FLAGS.seed)
 
     batch_size = FLAGS.train_batch_size if is_training else FLAGS.eval_batch_size
 
     dataset = train_input_fn(params={'batch_size': batch_size})
-    dataset = dataset.map(_keras_format)
+    dataset = dataset.map(_make_length_labels)
     return dataset
 
 def main(_):
