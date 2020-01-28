@@ -2,7 +2,7 @@
 
 OUTPUT_DIR_BASE=../out/
 mkdir -p ${OUTPUT_DIR_BASE}
-export MODE=train_only
+# export MODE=train_only
 
 export NUM_SPLITS=1
 

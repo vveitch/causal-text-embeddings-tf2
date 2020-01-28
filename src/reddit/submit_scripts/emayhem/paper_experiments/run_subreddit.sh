@@ -39,7 +39,6 @@ echo "python -m reddit.model.run_causal_bert \
   --simulation_mode=${SIMMODE}"
 
 python -m reddit.model.run_causal_bert \
-  --mode=${MODE} \
   --seed=0 \
   --bert_config_file=$BERT_BASE_DIR/bert_config.json \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
