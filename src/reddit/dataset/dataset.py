@@ -388,10 +388,10 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
 def null_masker(data):
     return {
         **data,
-        'maybe_masked_input_ids': data['token_ids'],
-        'masked_lm_positions': tf.zeros_like(data['token_ids']),
-        'masked_lm_ids': tf.zeros_like(data['token_ids']),
-        'masked_lm_weights': tf.zeros_like(data['token_ids'])
+        'maybe_masked_input_ids': data['op_token_ids'],
+        'masked_lm_positions': tf.zeros_like(data['op_token_ids']),
+        'masked_lm_ids': tf.zeros_like(data['op_token_ids']),
+        'masked_lm_weights': tf.zeros_like(data['op_token_ids'])
     }
 
 def make_input_fn_from_file(input_files_or_glob, seq_length,
