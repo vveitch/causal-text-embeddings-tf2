@@ -26,7 +26,7 @@ for SIMMODEj in "${SIMMODES[@]}"; do
                 NAME=mode${SIMMODE}.beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}.split${SPLIT}
                 sbatch --job-name=subredditsim_${NAME} \
                    --output=${OUTPUT_DIR_BASE}${NAME}.out \
-                   ./PeerRead/submit_scripts/emayhem/paper_experiments/run_buzzy_sim.sh
+                   ./reddit/submit_scripts/emayhem/paper_experiments/run_subreddit.sh
             done
         done
     done
