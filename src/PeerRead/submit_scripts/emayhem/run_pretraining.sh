@@ -13,7 +13,7 @@ export INIT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/unc
 export INIT_FILE=$INIT_DIR/bert_model.ckpt
 export BERT_BASE_DIR=$INIT_DIR
 export DATA_FILE=/proj/sml_netapp/dat/undocumented/PeerRead/proc/arxiv-all.tf_record
-export OUTPUT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/pre-training
+export OUTPUT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/pre-training/
 
 python -m PeerRead.model.run_pretraining \
 --bert_config_file=$BERT_BASE_DIR/bert_config.json \

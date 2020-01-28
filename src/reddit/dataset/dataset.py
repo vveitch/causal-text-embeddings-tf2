@@ -98,38 +98,15 @@ def make_null_labeler():
     def labeler(data):
         return {**data, 'outcome': tf.zeros([1]), 'y0': tf.zeros([1]), 'y1': tf.zeros([1]), 'treatment': tf.zeros([1])}
 
-    # def wacky_labeler(data):
-    #     label_ids = tf.greater_equal(data['num_authors'], 4)
-    #     label_ids = tf.cast(label_ids, tf.int32)
-    #     return {**data, 'label_ids': label_ids}
-
     return labeler
 
 
-
-def make_label():
-    """
-    WARNING: label_ids is not used anywhere
-
-    """
-
+def make_real_labeler(treatment_name, outcome_name):
     def labeler(data):
-        return {**data, 'label_ids': data['score']}
-
-    # def wacky_labeler(data):
-    #     label_ids = tf.greater_equal(data['num_authors'], 4)
-    #     label_ids = tf.cast(label_ids, tf.int32)
-    #     return {**data, 'label_ids': label_ids}
+        return {**data, 'outcome': data[outcome_name], 'treatment': data[treatment_name], 'y0': tf.zeros([1]),
+                'y1': tf.zeros([1])}
 
     return labeler
-
-def make_length_labeler():
-    def labeler(data):
-        length = tf.reduce_sum(data['input_mask'])
-        return {**data, 'length': length}
-    return labeler
-
-
 
 def outcome_sim(beta0, beta1, gamma, treatment, confounding, noise, setting="simple"):
     if setting == "simple":
@@ -220,7 +197,8 @@ def make_subreddit_based_simulated_labeler(treat_strength, con_strength, noise_l
         simulated_score, y0, y1 = outcome_sim(treat_strength, con_strength, noise_level, treatment, confounding, noise,
                                               setting=setting)
 
-        return {**data, 'outcome': simulated_score, 'y0': y0, 'y1': y1, 'confounding': confounding}
+        return {**data, 'outcome': simulated_score,  'treatment': treatment, 'y0': y0, 'y1': y1} 
+        #, 'confounding': confounding}
 
     return labeler
 
