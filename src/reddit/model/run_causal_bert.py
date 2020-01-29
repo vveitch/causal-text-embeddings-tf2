@@ -39,7 +39,7 @@ from reddit.dataset.dataset import make_input_fn_from_file, make_real_labeler, m
 common_flags.define_common_bert_flags()
 
 flags.DEFINE_enum(
-    'mode', 'train_and_predict', ['train_and_predict', 'predict_only'],
+    'mode', 'train_and_predict', ['train_only', 'train_and_predict', 'predict_only'],
     'One of {"train_and_predict", "predict_only"}. `train_and_predict`: '
     'trains the model and make predictions. '
     '`predict_only`: loads a trained model and makes predictions.')
@@ -102,7 +102,8 @@ flags.DEFINE_string(
     "treatment", "theorem_referenced",
     "Covariate used as treatment."
 )
-
+flags.DEFINE_string("subreddits", '', "the list of subreddits to train on")
+flags.DEFINE_bool("use_subreddit", False, "whether to use the subreddit index as a feature")
 flags.DEFINE_string("simulated", 'real', "whether to use real data ('real'), attribute based ('attribute'), "
                                          "or propensity score-based ('propensity') simulation"),
 flags.DEFINE_float("beta0", 0.25, "param passed to simulated labeler, treatment strength")
@@ -144,6 +145,11 @@ def make_dataset(is_training: bool, do_masking=False):
     dev_splits = [int(s) for s in str.split(FLAGS.dev_splits)]
     test_splits = [int(s) for s in str.split(FLAGS.test_splits)]
 
+    if FLAGS.subreddits == '':
+        subreddits = None
+    else:
+        subreddits = [int(s) for s in FLAGS.subreddits.split(',')]
+
     train_input_fn = make_input_fn_from_file(
         input_files_or_glob=FLAGS.input_files,
         seq_length=FLAGS.max_seq_length,
@@ -152,6 +158,7 @@ def make_dataset(is_training: bool, do_masking=False):
         test_splits=test_splits,
         tokenizer=tokenizer,
         do_masking=do_masking,
+        subreddits=subreddits,
         is_training=is_training,
         shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
         seed=FLAGS.seed,
@@ -250,7 +257,8 @@ def main(_):
         dragon_model.optimizer = tf.keras.optimizers.SGD(learning_rate=FLAGS.train_batch_size * initial_lr)
         return dragon_model, core_model
 
-    if FLAGS.mode == 'train_and_predict':
+    if (FLAGS.mode == 'train_and_predict') or (FLAGS.mode == 'train_only'): 
+    # if FLAGS.mode == 'train_and_predict': 
         # training. strategy.scope context allows use of multiple devices
         do_training = False
         with strategy.scope():
@@ -299,32 +307,33 @@ def main(_):
         saved_path = FLAGS.saved_path
 
     # make predictions and write to file
+    if FLAGS.mode != 'train_only':
 
-    # create data and model w/o masking
-    eval_data = make_dataset(is_training=False, do_masking=False)
-    dragon_model, core_model = _get_dragon_model(do_masking=False)
-    # reload the model weights (necessary because we've obliterated the masking)
-    checkpoint = tf.train.Checkpoint(model=dragon_model)
-    checkpoint.restore(saved_path).assert_existing_objects_matched()
-    # loss added as simple hack to bizzarre keras bug that requires compile for predict, and a loss for compile
-    dragon_model.add_loss(lambda: 0)
-    dragon_model.compile()
+        # create data and model w/o masking
+        eval_data = make_dataset(is_training=False, do_masking=False)
+        dragon_model, core_model = _get_dragon_model(do_masking=False)
+        # reload the model weights (necessary because we've obliterated the masking)
+        checkpoint = tf.train.Checkpoint(model=dragon_model)
+        checkpoint.restore(saved_path).assert_existing_objects_matched()
+        # loss added as simple hack to bizzarre keras bug that requires compile for predict, and a loss for compile
+        dragon_model.add_loss(lambda: 0)
+        dragon_model.compile()
 
-    outputs = dragon_model.predict(x=eval_data)
+        outputs = dragon_model.predict(x=eval_data)
 
-    out_dict = {}
-    out_dict['g'] = outputs[0].squeeze()
-    out_dict['q0'] = outputs[1].squeeze()
-    out_dict['q1'] = outputs[2].squeeze()
+        out_dict = {}
+        out_dict['g'] = outputs[0].squeeze()
+        out_dict['q0'] = outputs[1].squeeze()
+        out_dict['q1'] = outputs[2].squeeze()
 
-    predictions = pd.DataFrame(out_dict)
+        predictions = pd.DataFrame(out_dict)
 
-    label_dataset = eval_data.map(lambda f, l: l)
-    data_df = dataset_to_pandas_df(label_dataset)
+        label_dataset = eval_data.map(lambda f, l: l)
+        data_df = dataset_to_pandas_df(label_dataset)
 
-    outs = data_df.join(predictions)
-    with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
-        writer.write(outs.to_csv(sep="\t"))
+        outs = data_df.join(predictions)
+        with tf.io.gfile.GFile(FLAGS.prediction_file, "w") as writer:
+            writer.write(outs.to_csv(sep="\t"))
 
 
 if __name__ == '__main__':
