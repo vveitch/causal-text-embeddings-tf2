@@ -366,14 +366,14 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
     dataset = dataset.map(data_processing, 4)
 
     if subreddits is not None:
-        def filter_fn(data):
+        def filter_test_fn(data):
             filter = False
             for subreddit in subreddits:
                 filter = tf.logical_or(filter, tf.equal(data[1]['subreddit'], subreddit))
 
             return filter
 
-        dataset = dataset.filter(filter_fn)
+        dataset = dataset.filter(filter_test_fn)
 
     if filter_test:
         def filter_test_fn(data):
