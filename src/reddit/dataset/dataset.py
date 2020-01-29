@@ -361,7 +361,7 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
         def filter_test_fn(data):
             filter = False
             for subreddit in subreddits:
-                filter = tf.logical_or(filter, tf.equal(data[1]['subreddit'], subreddit))
+                filter = tf.logical_or(filter, tf.equal(data['subreddit'], subreddit))
 
             return filter
 
@@ -369,7 +369,7 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
 
     if filter_test:
         def filter_test_fn(data):
-            return tf.equal(data[1]['in_test'], 1)
+            return tf.equal(data['in_test'], 1)
 
         dataset = dataset.filter(filter_test_fn)
 
