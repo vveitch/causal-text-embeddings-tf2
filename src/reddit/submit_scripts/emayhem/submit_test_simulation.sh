@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-OUTPUT_DIR_BASE=../out/
+OUTPUT_DIR_BASE=/proj/sml_netapp/projects/causal-text-embeddings-tf2/tmp/
 mkdir -p ${OUTPUT_DIR_BASE}
 export MODE=train_only
 export NUM_SPLITS=5
