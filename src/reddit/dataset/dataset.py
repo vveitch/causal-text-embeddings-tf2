@@ -357,22 +357,6 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
         dataset = dataset.repeat()
         dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
 
-    if subreddits is not None:
-        def filter_test_fn(data):
-            filter = False
-            for subreddit in subreddits:
-                filter = tf.logical_or(filter, tf.equal(data['subreddit'], subreddit))
-
-            return filter
-
-        dataset = dataset.filter(filter_test_fn)
-
-    if filter_test:
-        def filter_test_fn(data):
-            return tf.equal(data['in_test'], 1)
-
-        dataset = dataset.filter(filter_test_fn)
-
     data_processing = compose(parser,  # parse from tf_record
                               labeler,  # add a label (unused downstream at time of comment)
                               make_split_document_labels(num_splits, dev_splits, test_splits),  # censor some labels
@@ -380,6 +364,22 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
                               _make_bert_compatifier(do_masking))  # Bert style token masking for unsupervised training
 
     dataset = dataset.map(data_processing, 4)
+
+    if subreddits is not None:
+        def filter_test_fn(data):
+            filter = False
+            for subreddit in subreddits:
+                filter = tf.logical_or(filter, tf.equal(data[1]['subreddit'], subreddit))
+
+            return filter
+
+        dataset = dataset.filter(filter_test_fn)
+
+    if filter_test:
+        def filter_test_fn(data):
+            return tf.equal(data[1]['in_test'], 1)
+
+        dataset = dataset.filter(filter_test_fn)
 
     if is_training:
         dataset = dataset.batch(batch_size=batch_size, drop_remainder=True)
