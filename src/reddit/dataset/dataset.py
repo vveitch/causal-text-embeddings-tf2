@@ -370,17 +370,17 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
     dataset = dataset.map(data_processing, 4)
 
     if subreddits is not None:
-        def filter_test_fn(data):
+        def filter_test_fn(features,label):
             is_valid = False
             for subreddit in subreddits:
-                is_valid = tf.logical_or(is_valid, tf.equal(data[1]['subreddit'], subreddit))
+                is_valid = tf.logical_or(is_valid, tf.equal(features['subreddit'], subreddit))
             return is_valid
 
         dataset = dataset.filter(filter_test_fn)
 
     if filter_test:
-        def filter_test_fn(data):
-            return tf.equal(data[1]['in_test'], 1)
+        def filter_test_fn(features,label):
+            return tf.equal(features['in_test'], 1)
 
         dataset = dataset.filter(filter_test_fn)
 
