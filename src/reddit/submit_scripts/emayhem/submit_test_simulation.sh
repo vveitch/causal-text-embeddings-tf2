@@ -3,8 +3,9 @@
 OUTPUT_DIR_BASE=/proj/sml_netapp/projects/causal-text-embeddings-tf2/tmp/
 mkdir -p ${OUTPUT_DIR_BASE}
 export MODE=train_only
-export NUM_SPLITS=5
+export NUM_SPLITS=10
 export SUBREDDITS=13,6,8
+export SPLIT=0
 
 #declare -a SIMMODES=('simple' 'multiplicative' 'interaction')
 declare -a SIMMODES=('simple')
@@ -21,14 +22,11 @@ for SIMMODEj in "${SIMMODES[@]}"; do
         export BETA1=${BETA1j}
         for GAMMAj in "${GAMMAS[@]}"; do
             export GAMMA=${GAMMAj}
-            for SPLITi in $(seq 0 $(($NUM_SPLITS-1))); do
-                export SPLIT=${SPLITi}
-                export OUTPUT_DIR=${OUTPUT_DIR_BASE}mode${SIMMODE}/beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}/split${SPLIT}
-                NAME=mode${SIMMODE}.beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}.split${SPLIT}
-                sbatch --job-name=subredditsim_${NAME} \
-                   --output=${OUTPUT_DIR_BASE}${NAME}.out \
-                   ./reddit/submit_scripts/emayhem/paper_experiments/run_subreddit.sh
-            done
+            export OUTPUT_DIR=${OUTPUT_DIR_BASE}mode${SIMMODE}/beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}/split${SPLIT}
+            NAME=mode${SIMMODE}.beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}.split${SPLIT}
+            sbatch --job-name=subredditsim_${NAME} \
+               --output=${OUTPUT_DIR_BASE}${NAME}.out \
+               ./reddit/submit_scripts/emayhem/paper_experiments/run_subreddit.sh
         done
     done
 done
