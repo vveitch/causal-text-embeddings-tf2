@@ -357,14 +357,6 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
         dataset = dataset.repeat()
         dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
 
-    data_processing = compose(parser,  # parse from tf_record
-                              labeler,  # add a label (unused downstream at time of comment)
-                              make_split_document_labels(num_splits, dev_splits, test_splits),  # censor some labels
-                              masker,
-                              _make_bert_compatifier(do_masking))  # Bert style token masking for unsupervised training
-
-    dataset = dataset.map(data_processing, 4)
-
     if subreddits is not None:
         def filter_test_fn(data):
             filter = False
@@ -380,6 +372,14 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
             return tf.equal(data[1]['in_test'], 1)
 
         dataset = dataset.filter(filter_test_fn)
+
+    data_processing = compose(parser,  # parse from tf_record
+                              labeler,  # add a label (unused downstream at time of comment)
+                              make_split_document_labels(num_splits, dev_splits, test_splits),  # censor some labels
+                              masker,
+                              _make_bert_compatifier(do_masking))  # Bert style token masking for unsupervised training
+
+    dataset = dataset.map(data_processing, 4)
 
     if is_training:
         dataset = dataset.batch(batch_size=batch_size, drop_remainder=True)
