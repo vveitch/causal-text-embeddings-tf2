@@ -376,12 +376,16 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
         dataset = dataset.filter(filter_fn)
 
     if filter_test:
-        def filter_fn(data):
-            return tf.equal(data['in_test'], 1)
+        def filter_test_fn(data):
+            return tf.equal(data[1]['in_test'], 1)
 
-        dataset = dataset.filter(filter_fn)
+        dataset = dataset.filter(filter_test_fn)
 
-    dataset = dataset.batch(batch_size=batch_size, drop_remainder=True)
+    if is_training:
+        dataset = dataset.batch(batch_size=batch_size, drop_remainder=True)
+    else:
+        dataset = dataset.batch(batch_size=batch_size, drop_remainder=False)
+
     return dataset
 
 

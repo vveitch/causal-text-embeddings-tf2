@@ -38,9 +38,8 @@ from reddit.dataset.dataset import make_input_fn_from_file, make_real_labeler, m
 
 common_flags.define_common_bert_flags()
 
-#REMEMBER TO CHANGE THIS BACK
 flags.DEFINE_enum(
-    'mode', 'train_only', ['train_only', 'train_and_predict', 'predict_only'],
+    'mode', 'train_and_predict', ['train_only', 'train_and_predict', 'predict_only'],
     'One of {"train_and_predict", "predict_only"}. `train_and_predict`: '
     'trains the model and make predictions. '
     '`predict_only`: loads a trained model and makes predictions.')
@@ -103,7 +102,8 @@ flags.DEFINE_string(
     "treatment", "theorem_referenced",
     "Covariate used as treatment."
 )
-
+flags.DEFINE_string("subreddits", '', "the list of subreddits to train on")
+flags.DEFINE_bool("use_subreddit", False, "whether to use the subreddit index as a feature")
 flags.DEFINE_string("simulated", 'real', "whether to use real data ('real'), attribute based ('attribute'), "
                                          "or propensity score-based ('propensity') simulation"),
 flags.DEFINE_float("beta0", 0.25, "param passed to simulated labeler, treatment strength")
@@ -145,6 +145,11 @@ def make_dataset(is_training: bool, do_masking=False):
     dev_splits = [int(s) for s in str.split(FLAGS.dev_splits)]
     test_splits = [int(s) for s in str.split(FLAGS.test_splits)]
 
+    if FLAGS.subreddits == '':
+        subreddits = None
+    else:
+        subreddits = [int(s) for s in FLAGS.subreddits.split(',')]
+
     train_input_fn = make_input_fn_from_file(
         input_files_or_glob=FLAGS.input_files,
         seq_length=FLAGS.max_seq_length,
@@ -153,6 +158,7 @@ def make_dataset(is_training: bool, do_masking=False):
         test_splits=test_splits,
         tokenizer=tokenizer,
         do_masking=do_masking,
+        subreddits=subreddits,
         is_training=is_training,
         shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
         seed=FLAGS.seed,
