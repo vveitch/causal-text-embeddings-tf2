@@ -369,7 +369,7 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
         def filter_fn(data):
             filter = False
             for subreddit in subreddits:
-                filter = tf.logical_or(filter, tf.equal(data['subreddit'], subreddit))
+                filter = tf.logical_or(filter, tf.equal(data[1]['subreddit'], subreddit))
 
             return filter
 
