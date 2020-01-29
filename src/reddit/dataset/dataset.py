@@ -89,6 +89,7 @@ def compose(*fns):
 DS: adding a number of data processing fns for supervised task
 '''
 
+
 def make_null_labeler():
     """
     labeler function that returns meaningless labels. Convenient for pre-training, where the labels are totally unused
@@ -107,6 +108,7 @@ def make_real_labeler(treatment_name, outcome_name):
                 'y1': tf.zeros([1])}
 
     return labeler
+
 
 def outcome_sim(beta0, beta1, gamma, treatment, confounding, noise, setting="simple"):
     if setting == "simple":
@@ -142,11 +144,11 @@ def make_subreddit_standardized_scores():
                                 11.37175703, 7.91225941, 54.5513382, 41.62996557, 61.8696114,
                                 21.74156836, 4.26996656, 6.3032812, 6.33557766, 10.75942321,
                                 12.29322831, 7.86248355, 6.96632453, 14.13948171, 6.62278865], dtype=np.float32)
-    all_std_scores = np.array([4.25777127, 358.8567717,  62.02295383, 203.28024083,
-                               26.27968206,  21.55731166,  16.68331688, 329.31646208,
-                               105.19197613, 115.06941069,  70.2522788,   5.20143709,
-                               9.37623701,  30.44100267,  69.05652112,  20.15282915,
-                               14.01754684,  11.22911321,  33.31924185,  11.04199622], dtype=np.float32)
+    all_std_scores = np.array([4.25777127, 358.8567717, 62.02295383, 203.28024083,
+                               26.27968206, 21.55731166, 16.68331688, 329.31646208,
+                               105.19197613, 115.06941069, 70.2522788, 5.20143709,
+                               9.37623701, 30.44100267, 69.05652112, 20.15282915,
+                               14.01754684, 11.22911321, 33.31924185, 11.04199622], dtype=np.float32)
 
     def labeler(data):
         subreddit_idx = data['subreddit']
@@ -168,7 +170,7 @@ def make_log_scores():
     def labeler(data):
         score = tf.cast(data['score'], tf.float32)
 
-        log_score = tf.log(tf.nn.relu(score)+1.)
+        log_score = tf.log(tf.nn.relu(score) + 1.)
         return {**data, 'log_score': log_score}
 
     return labeler
@@ -180,13 +182,13 @@ def make_subreddit_based_simulated_labeler(treat_strength, con_strength, noise_l
         [0.08290155440414508, 0.9306885544915641, 0.9444306623666584, 0.053265121877821245, 0.0836100211288862,
          0.9018952928382787, 0.6491243280735217, 0.7985401459854015, 0.3436175847457627, 0.2293529255554572,
          0.7604441360166551, 0.04929765886287625, 0.6117755289788408, 0.515695067264574, 0.24193122130091507,
-         0.06660675582809114, 0.5266344888108819, 0.875792872794372, 0.8210111788617886, 0.0022985674998973853], dtype=np.float32)
+         0.06660675582809114, 0.5266344888108819, 0.875792872794372, 0.8210111788617886, 0.0022985674998973853],
+        dtype=np.float32)
 
     np.random.seed(seed)
     all_noise = np.array(random.normal(0, 1, 422206), dtype=np.float32)
 
     def labeler(data):
-
         subreddit_idx = data['subreddit']
         index = data['index']
         treatment = data['gender']
@@ -197,8 +199,8 @@ def make_subreddit_based_simulated_labeler(treat_strength, con_strength, noise_l
         simulated_score, y0, y1 = outcome_sim(treat_strength, con_strength, noise_level, treatment, confounding, noise,
                                               setting=setting)
 
-        return {**data, 'outcome': simulated_score,  'treatment': treatment, 'y0': y0, 'y1': y1} 
-        #, 'confounding': confounding}
+        return {**data, 'outcome': simulated_score, 'treatment': treatment, 'y0': y0, 'y1': y1}
+        # , 'confounding': confounding}
 
     return labeler
 
@@ -211,7 +213,8 @@ def make_propensity_based_simulated_labeler(treat_strength, con_strength, noise_
     # extra_confounding = random.binomial(1, 0.5*np.ones_like(base_propensity_scores)).astype(np.float32)
     extra_confounding = random.normal(0, 1, base_propensity_scores.shape[0]).astype(np.float32)
 
-    all_propensity_scores = expit((1.-exogeneous_con)*logit(base_propensity_scores) + exogeneous_con * extra_confounding).astype(np.float32)
+    all_propensity_scores = expit(
+        (1. - exogeneous_con) * logit(base_propensity_scores) + exogeneous_con * extra_confounding).astype(np.float32)
     all_treatments = random.binomial(1, all_propensity_scores).astype(np.int32)
 
     # indices in dataset refer to locations in entire corpus,
@@ -329,7 +332,8 @@ def _make_bert_compatifier(do_masking):
     return bert_compatibility
 
 
-def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training, num_splits, dev_splits, test_splits, batch_size,
+def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training, num_splits, dev_splits, test_splits,
+                       batch_size,
                        filter_test=False,
                        subreddits=None,
                        shuffle_buffer_size=100):
@@ -397,6 +401,7 @@ def null_masker(data):
         'masked_lm_weights': tf.zeros_like(data['op_token_ids'])
     }
 
+
 def make_input_fn_from_file(input_files_or_glob, seq_length,
                             num_splits, dev_splits, test_splits,
                             tokenizer, is_training,
@@ -429,6 +434,8 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
             dataset = tf.data.Dataset.from_tensor_slices(tf.constant(input_files))
             cycle_length = 1  # go through the datasets in a deterministic order
 
+        dataset = dataset.interleave(tf.data.TFRecordDataset)
+
         # make the record parsing ops
         max_abstract_len = seq_length
 
@@ -437,21 +444,16 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
 
         parser = compose(parser, encoder)
 
-        # for use with interleave
-        def _dataset_processing(input):
-            input_dataset = tf.data.TFRecordDataset(input)
-            processed_dataset = dataset_processing(input_dataset,
-                                                   parser, masker, labeler,
-                                                   do_masking,
-                                                   is_training,
-                                                   num_splits, dev_splits, test_splits,
-                                                   batch_size,
-                                                   filter_test=filter_test,
-                                                   subreddits=subreddits,
-                                                   shuffle_buffer_size=shuffle_buffer_size)
-            return processed_dataset
+        dataset = dataset_processing(dataset,
+                                     parser, masker, labeler,
+                                     do_masking,
+                                     is_training,
+                                     num_splits, dev_splits, test_splits,
+                                     batch_size,
+                                     filter_test=filter_test,
+                                     subreddits=subreddits,
+                                     shuffle_buffer_size=shuffle_buffer_size)
 
-        dataset = dataset.interleave(_dataset_processing)
         return dataset
 
     return input_fn
@@ -476,6 +478,7 @@ def make_input_id_masker(tokenizer, seed):
             'masked_lm_ids': masked_lm_ids,
             'masked_lm_weights': masked_lm_weights
         }
+
     return masker
 
 
@@ -586,14 +589,12 @@ def main():
     args = parser.parse_args()
 
     # for easy debugging
-    # tsv_file = "../../dat/PeerRead/proc/acl_2017.tf_record"
-    # tsv_file = glob.glob('/home/victor/Documents/causal-spe-embeddings/dat/PeerRead/proc/*.tf_record')
-    filename = '/proj/sml_netapp/dat/undocumented/reddit/proc.tf_record'
+    filename = '../dat/reddit/proc.tf_record'
 
     # bert_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/1",
     #                             trainable=True)
     # vocab_file = bert_layer.resolved_object.vocab_file.asset_path.numpy()
-    vocab_file = '/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/uncased_L-12_H-768_A-12/vocab.txt'
+    vocab_file = '../pre-trained/uncased_L-12_H-768_A-12/vocab.txt'
 
     tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
 
@@ -604,17 +605,18 @@ def main():
     test_splits = [1, 2]
 
     input_dataset_from_filenames = make_input_fn_from_file(filename,
-                                                             args.max_abs_len,
-                                                             num_splits,
-                                                             dev_splits,
-                                                             test_splits,
-                                                             tokenizer,
-                                                             do_masking=True,
-                                                             is_training=True,
-                                                             filter_test=False,
-                                                             shuffle_buffer_size=25000,
-                                                             labeler=None,
-                                                             seed=0)
+                                                           args.max_abs_len,
+                                                           num_splits,
+                                                           dev_splits,
+                                                           test_splits,
+                                                           tokenizer,
+                                                           do_masking=True,
+                                                           is_training=True,
+                                                           filter_test=False,
+                                                           shuffle_buffer_size=25000,
+                                                           labeler=None,
+                                                           seed=0,
+                                                           subreddits=[1, 2, 3])
     params = {'batch_size': 10000}
     dataset = input_dataset_from_filenames(params)
 
