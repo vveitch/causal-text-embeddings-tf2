@@ -2,8 +2,10 @@
 
 OUTPUT_DIR_BASE=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/reddit/subreddit-based-sim/
 mkdir -p ${OUTPUT_DIR_BASE}
-
+export SUBREDDITS=13,6,8
 export NUM_SPLITS=10
+export MODE=train_and_predict
+
 
 #declare -a SIMMODES=('simple' 'multiplicative' 'interaction')
 declare -a SIMMODES=('simple')
