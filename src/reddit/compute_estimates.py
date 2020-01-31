@@ -1,10 +1,10 @@
 import os
 import glob
-
+import argparse
 import numpy as np
 import pandas as pd
 from scipy.stats import trim_mean
-
+from sklearn import metrics
 import tensorflow as tf
 
 from semi_parametric_estimation.att import att_estimates
@@ -19,7 +19,9 @@ def att_from_bert_tsv(tsv_path, test_split=True):
         reduced_df = predictions[predictions.in_test == 1]
     else:
         reduced_df = predictions[predictions.in_train == 1]
-
+    print(tsv_path)
+    print("Prop score auc:", metrics.roc_auc_score(reduced_df.treatment,reduced_df.g))
+    print("Expected outcome mse :", metrics.mean_squared_error(reduced_df[reduced_df.treatment==1].outcome,reduced_df[reduced_df.treatment==1].q1))
 
     gt = reduced_df[reduced_df.treatment == 1].y1.mean() - reduced_df[reduced_df.treatment == 1].y0.mean()
     # print(f"Ground truth: {gt}")
@@ -33,13 +35,16 @@ def att_from_bert_tsv(tsv_path, test_split=True):
                   'q1': 'q1',
                   'g': 'g'}
 
-    reduced_df = reduced_df[selections.values()]
+    # reduced_df = reduced_df[selections.values()]
+    reduced_df = reduced_df[list(selections.values())]
     rename_dict = {v: k for k, v in selections.items()}
     reduced_df = reduced_df.rename(columns=rename_dict)
 
+
+
     # get rid of any sample w/ less than 1% chance of receiving treatment
-    # include_sample = reduced_df['g'] > 0.01
-    # reduced_df = reduced_df[include_sample]
+    include_sample = reduced_df['g'] > 0.03
+    reduced_df = reduced_df[include_sample]
 
     nuisance_dict = reduced_df.to_dict('series')
     nuisance_dict['prob_t'] = nuisance_dict['t'].mean()
@@ -92,12 +97,12 @@ def dragon_att(output_dir, test_split=True):
 def confounding_level():
     # Comparison over compounding strength
     estimates = {}
-    estimates['low'] = dragon_att('../out/reddit/subreddit-based-sim/modesimple/beta01.0.beta110.0.gamma1.0')
-    # estimates['med'] = dragon_att('../out/reddit/subreddit-based-sim/modesimple/beta01.0.beta110.0.gamma1.0')
-    # estimates['high'] = dragon_att('../out/reddit/subreddit-based-sim/modesimple/beta01.0.beta1100.0.gamma1.0')
+    estimates['low'] = dragon_att('../out/reddit/subreddit-based-sim/modesimple/beta01.0.beta11.0.gamma1.0')
+    estimates['med'] = dragon_att('../out/reddit/subreddit-based-sim/modesimple/beta01.0.beta110.0.gamma1.0')
+    estimates['high'] = dragon_att('../out/reddit/subreddit-based-sim/modesimple/beta01.0.beta1100.0.gamma1.0')
 
     estimate_df = pd.DataFrame(estimates)
-    with tf.io.gfile.GFile('../out/reddit/subreddit-based-sim/estimates.tsv', "w") as writer:
+    with tf.gfile.GFile('../out/reddit/subreddit-based-sim/estimates.tsv', "w") as writer:
         writer.write(estimate_df.to_csv(sep="\t"))
 
     print(estimate_df.round(2))
@@ -105,14 +110,14 @@ def confounding_level():
 
 def buzzy_baselines():
     base_dir = '../out/reddit/subdreddit-baselines/'
-    out_file = 'modesimple/beta00.25.beta15.0.gamma0.0'
+    out_file = 'modesimple/beta01.0.beta110.0.gamma1.0'
 
     estimates = {}
-    estimates['baseline'] = dragon_att(os.path.join(base_dir, 'subreddit', out_file))
+    estimates['baseline'] = dragon_att(os.path.join(base_dir, 'no-dragon', out_file))
     # todo: some bug in fixed features model
-    # estimates['fixed_features'] = dragon_att(os.path.join(base_dir, 'buzzy-based-sim-fixed-features', out_file))
-    estimates['no_pretrain'] = dragon_att(os.path.join(base_dir, 'subdreddit-sim-no-init-baseline', out_file))
-    estimates['no_masking'] = dragon_att(os.path.join(base_dir, 'subreddit-sim-no-masking', out_file))
+    # estimates['fixed_features'] = dragon_att(os.path.join(base_dir, 'fixed-features', out_file))
+    estimates['no_pretrain'] = dragon_att(os.path.join(base_dir, 'no-init', out_file))
+    estimates['no_masking'] = dragon_att(os.path.join(base_dir, 'no-masking', out_file))
 
     estimate_df = pd.DataFrame(estimates)
     print(estimate_df.round(2))

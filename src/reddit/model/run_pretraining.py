@@ -43,7 +43,7 @@ flags.DEFINE_integer(
     'than this will be padded.')
 flags.DEFINE_integer('max_predictions_per_seq', 20,
                      'Maximum predictions per sequence_output.')
-flags.DEFINE_integer('train_batch_size', 32, 'Total batch size for training.')
+flags.DEFINE_integer('train_batch_size', 64, 'Total batch size for training.')
 flags.DEFINE_integer('num_steps_per_epoch', 1000,
                      'Total number of training steps to run per epoch.')
 flags.DEFINE_float('warmup_steps', 10000,
