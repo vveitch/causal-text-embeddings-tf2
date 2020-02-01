@@ -7,7 +7,7 @@
 
 source activate py3.6
 
-export INIT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/pre-training/reddit/pretrained
+export INIT_DIR=/proj/sml_netapp/projects/causal-text-embeddings-tf/out/pre-training/reddit/pretrained
 export INIT_FILE=$INIT_DIR/bert_model.ckpt-101
 export BERT_BASE_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/uncased_L-12_H-768_A-12
 #export INIT_FILE=$BERT_BASE_DIR/bert_model.ckpt
@@ -23,7 +23,7 @@ echo "python -m reddit.model.run_causal_bert \
   --input_files=$DATA_FILE \
   --model_dir=${OUTPUT_DIR} \
   --max_seq_length=128 \
-  --train_batch_size=32 \
+  --train_batch_size=64 \
   --learning_rate=3e-4 \
   --num_train_epochs=10 \
   --prediction_file=$PREDICTION_FILE \
@@ -47,7 +47,7 @@ python -m reddit.model.run_causal_bert \
   --input_files=$DATA_FILE \
   --model_dir=${OUTPUT_DIR} \
   --max_seq_length=128 \
-  --train_batch_size=32 \
+  --train_batch_size=64 \
   --num_train_epochs=10 \
   --prediction_file=$PREDICTION_FILE \
   --learning_rate=5e-4 \

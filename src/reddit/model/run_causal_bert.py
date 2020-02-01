@@ -75,8 +75,8 @@ flags.DEFINE_integer(
 flags.DEFINE_integer('max_predictions_per_seq', 20,
                      'Maximum predictions per sequence_output.')
 
-flags.DEFINE_integer('train_batch_size', 32, 'Batch size for training.')
-flags.DEFINE_integer('eval_batch_size', 32, 'Batch size for evaluation.')
+flags.DEFINE_integer('train_batch_size', 64, 'Batch size for training.')
+flags.DEFINE_integer('eval_batch_size', 64, 'Batch size for evaluation.')
 flags.DEFINE_string(
     'hub_module_url', None, 'TF-Hub path/url to Bert module. '
                             'If specified, init_checkpoint flag should not be used.')
