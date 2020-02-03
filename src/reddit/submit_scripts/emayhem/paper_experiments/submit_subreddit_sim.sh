@@ -22,7 +22,7 @@ for SIMMODEj in "${SIMMODES[@]}"; do
         export BETA1=${BETA1j}
         for GAMMAj in "${GAMMAS[@]}"; do
             export GAMMA=${GAMMAj}
-            for SPLITi in $(seq 0 $((3-1))); do
+            for SPLITi in $(seq 0 $((1-1))); do
                 export SPLIT=${SPLITi}
                 export OUTPUT_DIR=${OUTPUT_DIR_BASE}mode${SIMMODE}/beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}/split${SPLIT}
                 NAME=mode${SIMMODE}.beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}.split${SPLIT}
