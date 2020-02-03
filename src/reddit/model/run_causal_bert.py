@@ -162,7 +162,8 @@ def make_dataset(is_training: bool, do_masking=False):
         is_training=is_training,
         shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
         seed=FLAGS.seed,
-        labeler=labeler)
+        labeler=labeler,
+        filter_train=is_training)
 
     batch_size = FLAGS.train_batch_size if is_training else FLAGS.eval_batch_size
 
@@ -170,8 +171,10 @@ def make_dataset(is_training: bool, do_masking=False):
 
     # format expected by Keras for training
     if is_training:
-        dataset = filter_training(dataset)
-        dataset = dataset.map(_keras_format)
+        # dataset = filter_training(dataset)
+        dataset = dataset.map(_keras_format, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     return dataset
 

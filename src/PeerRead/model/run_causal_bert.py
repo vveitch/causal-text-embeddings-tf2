@@ -180,7 +180,9 @@ def make_dataset(is_training: bool, do_masking=False):
     # format expected by Keras for training
     if is_training:
         dataset = filter_training(dataset)
-        dataset = dataset.map(_keras_format)
+        dataset = dataset.map(_keras_format, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     return dataset
 
