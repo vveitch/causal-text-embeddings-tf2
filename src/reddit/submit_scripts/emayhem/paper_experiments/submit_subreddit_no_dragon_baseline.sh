@@ -3,7 +3,7 @@
 OUTPUT_DIR_BASE=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/reddit/subreddit-baselines/no-dragon/
 mkdir -p ${OUTPUT_DIR_BASE}
 
-export NUM_SPLITS=10
+export NUM_SPLITS=3
 
 #declare -a SIMMODES=('simple' 'multiplicative' 'interaction')
 declare -a SIMMODES=('simple')
