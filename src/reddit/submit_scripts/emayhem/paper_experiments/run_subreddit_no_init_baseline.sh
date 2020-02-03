@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:2
 #SBATCH --mail-type=ALL
 
-source activate py3.6
+source activate ct-2
 
 export BERT_BASE_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/uncased_L-12_H-768_A-12
 export DATA_FILE=/proj/sml_netapp/dat/undocumented/reddit/proc.tf_record

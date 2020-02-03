@@ -10,7 +10,7 @@ declare -a SIMMODES=('simple')
 
 export BETA0=1.0
 declare -a BETA1S=(10.0)
-declare -a GAMMAS=(1.0 4.0)
+declare -a GAMMAS=(1.0)
 
 for SIMMODEj in "${SIMMODES[@]}"; do
     export SIMMODE=${SIMMODEj}

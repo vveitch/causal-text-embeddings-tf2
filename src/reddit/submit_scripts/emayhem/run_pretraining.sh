@@ -7,7 +7,7 @@
 #SBATCH --mail-type=ALL
 #SBATCH --nodelist=janice
 
-source activate py3.6
+source activate ct-2
 
 export INIT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/uncased_L-12_H-768_A-12
 export INIT_FILE=$INIT_DIR/bert_model.ckpt

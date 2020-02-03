@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:2
 #SBATCH --mail-type=ALL
 
-source activate py3.6
+source activate ct-2
 
 export INIT_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/out/pre-training/reddit/pretrained
 export INIT_FILE=$INIT_DIR/bert_model.ckpt-101
