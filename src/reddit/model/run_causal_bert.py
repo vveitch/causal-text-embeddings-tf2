@@ -102,7 +102,7 @@ flags.DEFINE_string(
     "treatment", "theorem_referenced",
     "Covariate used as treatment."
 )
-flags.DEFINE_string("subreddits", '', "the list of subreddits to train on")
+flags.DEFINE_string("subreddits", '13,6,8', "the list of subreddits to train on")
 flags.DEFINE_bool("use_subreddit", False, "whether to use the subreddit index as a feature")
 flags.DEFINE_string("simulated", 'real', "whether to use real data ('real'), attribute based ('attribute'), "
                                          "or propensity score-based ('propensity') simulation"),
