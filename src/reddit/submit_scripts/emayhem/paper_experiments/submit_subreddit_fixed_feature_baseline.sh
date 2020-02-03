@@ -24,7 +24,7 @@ for SIMMODEj in "${SIMMODES[@]}"; do
                 NAME=mode${SIMMODE}.beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}.split${SPLIT}
                 sbatch --job-name=subredditsim_fixedfeatures_${NAME} \
                    --output=${OUTPUT_DIR_BASE}${NAME}.out \
-                   ./reddit/submit_scripts/emayhem/paper_experiments/run_subdreddit_fixed_features.sh
+                   ./reddit/submit_scripts/emayhem/paper_experiments/run_subreddit_fixed_features.sh
             done
         done
     done

@@ -22,7 +22,7 @@ echo "python -m reddit.model.run_causal_bert \
   --learning_rate=3e-4 \
   --num_train_epochs=10 \
   --prediction_file=$PREDICTION_FILE \
-  --learning_rate=5e-4 \
+  --learning_rate=3e-5 \
   --do_masking=True \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
@@ -43,7 +43,7 @@ python -m reddit.model.run_causal_bert \
   --train_batch_size=64 \
   --num_train_epochs=10 \
   --prediction_file=$PREDICTION_FILE \
-  --learning_rate=5e-4 \
+  --learning_rate=3e-5 \
   --do_masking=True \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
