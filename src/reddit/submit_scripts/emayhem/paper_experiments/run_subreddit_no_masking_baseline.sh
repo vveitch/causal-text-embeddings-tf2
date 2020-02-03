@@ -23,7 +23,7 @@ echo "python -m reddit.model.run_causal_bert \
   --input_files=$DATA_FILE \
   --model_dir=${OUTPUT_DIR} \
   --max_seq_length=128 \
-  --train_batch_size=32 \
+  --train_batch_size=64 \
   --learning_rate=3e-4 \
   --num_train_epochs=10 \
   --prediction_file=$PREDICTION_FILE \
@@ -46,7 +46,7 @@ python -m reddit.model.run_causal_bert \
   --input_files=$DATA_FILE \
   --model_dir=${OUTPUT_DIR} \
   --max_seq_length=128 \
-  --train_batch_size=32 \
+  --train_batch_size=64 \
   --num_train_epochs=10 \
   --prediction_file=$PREDICTION_FILE \
   --learning_rate=5e-4 \
