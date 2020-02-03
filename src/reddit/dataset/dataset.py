@@ -106,7 +106,12 @@ def make_null_labeler():
 
 def make_real_labeler(treatment_name, outcome_name):
     def labeler(data):
-        return {**data, 'outcome': data[outcome_name], 'treatment': data[treatment_name], 'y0': tf.zeros([1]),
+        if outcome_name=='log_score':
+            outcome = tf.math.log(tf.cast(data['score'], tf.float32))
+        else:
+            outcome = data[outcome_name]
+
+        return {**data, 'outcome': outcome, 'treatment': data[treatment_name], 'y0': tf.zeros([1]),
                 'y1': tf.zeros([1])}
 
     return labeler
@@ -616,6 +621,8 @@ def main():
     dev_splits = []
     test_splits = [1]
 
+    labeler = make_real_labeler('gender', 'log_score')
+
     input_dataset_from_filenames = make_input_fn_from_file(filename,
                                                            args.max_abs_len,
                                                            num_splits,
@@ -627,9 +634,9 @@ def main():
                                                            filter_test=False,
                                                            filter_train=True,
                                                            shuffle_buffer_size=1000,
-                                                           labeler=None,
+                                                           labeler=labeler,
                                                            seed=0,
-                                                           subreddits=[1, 2, 3])
+                                                           subreddits=[13])
     params = {'batch_size': 64}
     dataset = input_dataset_from_filenames(params)
     # dataset = filter_training(dataset)

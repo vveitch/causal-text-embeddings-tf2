@@ -131,7 +131,7 @@ def _keras_format(features, labels):
 
 def make_dataset(is_training: bool, do_masking=False):
     if FLAGS.simulated == 'real':
-        labeler = make_real_labeler(FLAGS.treatment, 'score')
+        labeler = make_real_labeler(FLAGS.treatment, 'log_score')
 
     elif FLAGS.simulated == 'attribute':
         labeler = make_subreddit_based_simulated_labeler(FLAGS.beta0, FLAGS.beta1, FLAGS.gamma, FLAGS.simulation_mode,
