@@ -3,7 +3,7 @@
 OUTPUT_DIR_BASE=/proj/sml_netapp/projects/victor/causal-text-tf2/out/paper/reddit/subreddit-based-sim/
 mkdir -p ${OUTPUT_DIR_BASE}
 export SUBREDDITS=13,6,8
-export NUM_SPLITS=3
+export NUM_SPLITS=10
 export MODE=train_and_predict
 
 
@@ -22,7 +22,7 @@ for SIMMODEj in "${SIMMODES[@]}"; do
         export BETA1=${BETA1j}
         for GAMMAj in "${GAMMAS[@]}"; do
             export GAMMA=${GAMMAj}
-            for SPLITi in $(seq 0 $(($NUM_SPLITS-1))); do
+            for SPLITi in $(seq 0 $((3-1))); do
                 export SPLIT=${SPLITi}
                 export OUTPUT_DIR=${OUTPUT_DIR_BASE}mode${SIMMODE}/beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}/split${SPLIT}
                 NAME=mode${SIMMODE}.beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}.split${SPLIT}
