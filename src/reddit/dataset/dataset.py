@@ -107,7 +107,7 @@ def make_null_labeler():
 def make_real_labeler(treatment_name, outcome_name):
     def labeler(data):
         if outcome_name=='log_score':
-            outcome = tf.math.log(tf.cast(data['score'], tf.float32))
+            outcome = tf.math.log(tf.cast(data['score'], tf.float32) + 1.)
         else:
             outcome = data[outcome_name]
 
