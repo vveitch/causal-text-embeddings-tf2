@@ -174,7 +174,7 @@ def make_dataset(is_training: bool, do_masking=False):
         # dataset = filter_training(dataset)
         dataset = dataset.map(_keras_format, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
-    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    dataset = dataset.prefetch(4)
 
     return dataset
 
@@ -261,9 +261,7 @@ def main(_):
         return dragon_model, core_model
 
     if (FLAGS.mode == 'train_and_predict') or (FLAGS.mode == 'train_only'): 
-    # if FLAGS.mode == 'train_and_predict': 
         # training. strategy.scope context allows use of multiple devices
-        do_training = False
         with strategy.scope():
             keras_train_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
 

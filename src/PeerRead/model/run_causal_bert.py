@@ -264,7 +264,6 @@ def main(_):
 
     if FLAGS.mode == 'train_and_predict':
         # training. strategy.scope context allows use of multiple devices
-        do_training = False
         with strategy.scope():
             keras_train_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
 
