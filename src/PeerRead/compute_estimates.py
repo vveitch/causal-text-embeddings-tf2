@@ -12,14 +12,13 @@ from semi_parametric_estimation.att import att_estimates
 pd.set_option('display.max_colwidth', -1)
 
 
-def att_from_bert_tsv(tsv_path, test_split=True):
+def att_from_bert_tsv(tsv_path, test_split=True, trim=0.0):
     predictions = pd.read_csv(tsv_path, sep='\t')
 
     if test_split:
         reduced_df = predictions[predictions.in_test == 1]
     else:
         reduced_df = predictions[predictions.in_train == 1]
-
 
     gt = reduced_df[reduced_df.treatment == 1].y1.mean() - reduced_df[reduced_df.treatment == 1].y0.mean()
     # print(f"Ground truth: {gt}")
@@ -37,21 +36,25 @@ def att_from_bert_tsv(tsv_path, test_split=True):
     rename_dict = {v: k for k, v in selections.items()}
     reduced_df = reduced_df.rename(columns=rename_dict)
 
+    inc_samp = np.logical_and(reduced_df['g'] > trim, reduced_df['g'] < 1 - trim)
+    reduced_df = reduced_df[inc_samp]
+
     # get rid of any sample w/ less than 1% chance of receiving treatment
     # include_sample = reduced_df['g'] > 0.01
     # reduced_df = reduced_df[include_sample]
 
     nuisance_dict = reduced_df.to_dict('series')
     nuisance_dict['prob_t'] = nuisance_dict['t'].mean()
-    estimates = att_estimates(**nuisance_dict, deps=0.00005)
+    estimates = att_estimates(**nuisance_dict, deps=0.0005)
 
     estimates['ground_truth'] = gt
+    estimates['unadjusted_est'] = naive  # overwrite because trimming will screw this up
     # estimates['naive'] = naive
 
     return estimates
 
 
-def dragon_att(output_dir, test_split=True):
+def dragon_att(output_dir, test_split=True, trim=0.03, trim_test=False):
     """
     Expects that the data was split into k folds, and the predictions from each fold
     was saved in experiment_dir/[fold_identifier]/[prediction_file].tsv.
@@ -64,7 +67,7 @@ def dragon_att(output_dir, test_split=True):
     estimates = []
     for data_file in data_files:
         try:
-            all_estimates = att_from_bert_tsv(data_file, test_split=test_split)
+            all_estimates = att_from_bert_tsv(data_file, test_split=test_split, trim=trim)
             # print(psi_estimates)
             estimates += [all_estimates]
         except:
@@ -77,7 +80,7 @@ def dragon_att(output_dir, test_split=True):
         for estimate in estimates:
             k_estimates += [estimate[k]]
 
-        if "trim_test":
+        if trim_test:
             k_estimates = np.sort(k_estimates)[1:-1]
         avg_estimates[k] = np.mean(k_estimates)
         avg_estimates[(k, 'std')] = np.std(k_estimates)
@@ -114,23 +117,23 @@ def buzzy_baselines():
     estimates['no_masking'] = dragon_att(os.path.join(base_dir, 'no-masking', out_file))
     estimates['no_dragon'] = dragon_att(os.path.join(base_dir, 'no-dragon', out_file))
 
-
     estimate_df = pd.DataFrame(estimates)
     print(estimate_df.round(2))
 
+    return estimate_df
+
 
 def real():
-    estimates={}
+    estimates = {}
     estimates['buzzy'] = dragon_att('../out/PeerRead/real/o_accepted_t_buzzy_title')
     estimates['theorem_referenced'] = dragon_att('../out/PeerRead/real/o_accepted_t_theorem_referenced')
     estimate_df = pd.DataFrame(estimates)
     print(estimate_df.round(2))
 
-def main():
+    return estimate_df
+
+
+if __name__ == '__main__':
     # estimates = confounding_level()
     # estimates = real()
     estimates = buzzy_baselines()
-
-if __name__ == '__main__':
-    main()
-    # pass

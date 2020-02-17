@@ -23,6 +23,8 @@ from tf_official.nlp.bert import tokenization
 from reddit.dataset.sentence_masking import create_masked_lm_predictions
 import numpy as np
 from scipy.special import logit, expit
+from causal_bert.data_utils import dataset_to_pandas_df, filter_training
+
 
 # hardcoded because protobuff is not self describing for some bizarre reason
 # all features are (lists of) tf.int64
@@ -104,7 +106,12 @@ def make_null_labeler():
 
 def make_real_labeler(treatment_name, outcome_name):
     def labeler(data):
-        return {**data, 'outcome': data[outcome_name], 'treatment': data[treatment_name], 'y0': tf.zeros([1]),
+        if outcome_name=='log_score':
+            outcome = tf.math.log(tf.nn.relu(tf.cast(data['score'], tf.float32)) + 1.)
+        else:
+            outcome = data[outcome_name]
+
+        return {**data, 'outcome': outcome, 'treatment': data[treatment_name], 'y0': tf.zeros([1]),
                 'y1': tf.zeros([1])}
 
     return labeler
@@ -334,6 +341,7 @@ def _make_bert_compatifier(do_masking):
 
 def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training, num_splits, dev_splits, test_splits,
                        batch_size,
+                       filter_train=False,
                        filter_test=False,
                        subreddits=None,
                        shuffle_buffer_size=100):
@@ -384,6 +392,13 @@ def dataset_processing(dataset, parser, masker, labeler, do_masking, is_training
 
         dataset = dataset.filter(filter_test_fn)
 
+    if filter_train:
+        def filter_test_fn(features,label):
+            return tf.equal(label['in_train'], 1)
+
+        dataset = dataset.filter(filter_test_fn)
+
+
     if is_training:
         dataset = dataset.batch(batch_size=batch_size, drop_remainder=True)
     else:
@@ -407,6 +422,7 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
                             tokenizer, is_training,
                             do_masking=True,
                             filter_test=False,
+                            filter_train=False,
                             subreddits=None,
                             shuffle_buffer_size=int(1e6), seed=0, labeler=None):
     input_files = []
@@ -451,6 +467,7 @@ def make_input_fn_from_file(input_files_or_glob, seq_length,
                                      num_splits, dev_splits, test_splits,
                                      batch_size,
                                      filter_test=filter_test,
+                                     filter_train=filter_train,
                                      subreddits=subreddits,
                                      shuffle_buffer_size=shuffle_buffer_size)
 
@@ -583,7 +600,7 @@ def make_input_fn_from_tfrecord(tokenizer, tfrecord='../dat/reddit/proc.tf_recor
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--shuffle_buffer_size', type=int, default=100)
-    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--max_abs_len', type=int, default=128)
 
     args = parser.parse_args()
@@ -602,7 +619,9 @@ def main():
     # dev_splits = [0]
     # test_splits = [0]
     dev_splits = []
-    test_splits = [1, 2]
+    test_splits = [1]
+
+    labeler = make_real_labeler('gender', 'log_score')
 
     input_dataset_from_filenames = make_input_fn_from_file(filename,
                                                            args.max_abs_len,
@@ -613,17 +632,23 @@ def main():
                                                            do_masking=True,
                                                            is_training=True,
                                                            filter_test=False,
-                                                           shuffle_buffer_size=25000,
-                                                           labeler=None,
+                                                           filter_train=True,
+                                                           shuffle_buffer_size=1000,
+                                                           labeler=labeler,
                                                            seed=0,
-                                                           subreddits=[1, 2, 3])
-    params = {'batch_size': 10000}
+                                                           subreddits=[13])
+    params = {'batch_size': 64}
     dataset = input_dataset_from_filenames(params)
+    # dataset = filter_training(dataset)
 
-    print(dataset.element_spec)
+    sample = next(iter(dataset))
+    print(sample)
 
-    for val in dataset.take(1):
+    print("start")
+    for val in dataset.take(100):
+        print("hit")
         sample = val
+    print("end")
 
     sample = next(iter(dataset))
     print(sample)

@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:2
 #SBATCH --mail-type=ALL
 
-source activate py3.6
+source activate ct-2
 
 export BERT_BASE_DIR=/proj/sml_netapp/projects/victor/causal-text-tf2/pre-trained/uncased_L-12_H-768_A-12
 export DATA_FILE=/proj/sml_netapp/dat/undocumented/reddit/proc.tf_record
@@ -20,9 +20,9 @@ echo "python -m reddit.model.run_causal_bert \
   --max_seq_length=128 \
   --train_batch_size=64 \
   --learning_rate=3e-4 \
-  --num_train_epochs=10 \
+  --num_train_epochs=20 \
   --prediction_file=$PREDICTION_FILE \
-  --learning_rate=5e-4 \
+  --learning_rate=3e-5 \
   --do_masking=True \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \
@@ -41,9 +41,9 @@ python -m reddit.model.run_causal_bert \
   --model_dir=${OUTPUT_DIR} \
   --max_seq_length=128 \
   --train_batch_size=64 \
-  --num_train_epochs=10 \
+  --num_train_epochs=20 \
   --prediction_file=$PREDICTION_FILE \
-  --learning_rate=5e-4 \
+  --learning_rate=3e-5 \
   --do_masking=True \
   --num_splits=${NUM_SPLITS} \
   --test_splits=${SPLIT} \

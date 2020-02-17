@@ -10,7 +10,7 @@ declare -a SIMMODES=('simple')
 
 export BETA0=1.0
 declare -a BETA1S=(10.0)
-declare -a GAMMAS=(1.0 4.0)
+declare -a GAMMAS=(1.0)
 
 for SIMMODEj in "${SIMMODES[@]}"; do
     export SIMMODE=${SIMMODEj}
@@ -18,7 +18,7 @@ for SIMMODEj in "${SIMMODES[@]}"; do
         export BETA1=${BETA1j}
         for GAMMAj in "${GAMMAS[@]}"; do
             export GAMMA=${GAMMAj}
-            for SPLITi in $(seq 0 $(($NUM_SPLITS-1))); do
+            for SPLITi in $(seq 0 $((5-1))); do
                 export SPLIT=${SPLITi}
                 export OUTPUT_DIR=${OUTPUT_DIR_BASE}mode${SIMMODE}/beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}/split${SPLIT}
                 NAME=mode${SIMMODE}.beta0${BETA0}.beta1${BETA1}.gamma${GAMMA}.split${SPLIT}

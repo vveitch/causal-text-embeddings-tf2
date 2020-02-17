@@ -102,7 +102,7 @@ flags.DEFINE_string(
     "treatment", "theorem_referenced",
     "Covariate used as treatment."
 )
-flags.DEFINE_string("subreddits", '', "the list of subreddits to train on")
+flags.DEFINE_string("subreddits", '13,6,8', "the list of subreddits to train on")
 flags.DEFINE_bool("use_subreddit", False, "whether to use the subreddit index as a feature")
 flags.DEFINE_string("simulated", 'real', "whether to use real data ('real'), attribute based ('attribute'), "
                                          "or propensity score-based ('propensity') simulation"),
@@ -131,7 +131,7 @@ def _keras_format(features, labels):
 
 def make_dataset(is_training: bool, do_masking=False):
     if FLAGS.simulated == 'real':
-        labeler = make_real_labeler(FLAGS.treatment, 'score')
+        labeler = make_real_labeler(FLAGS.treatment, 'log_score')
 
     elif FLAGS.simulated == 'attribute':
         labeler = make_subreddit_based_simulated_labeler(FLAGS.beta0, FLAGS.beta1, FLAGS.gamma, FLAGS.simulation_mode,
@@ -162,7 +162,8 @@ def make_dataset(is_training: bool, do_masking=False):
         is_training=is_training,
         shuffle_buffer_size=25000,  # note: bert hardcoded this, and I'm following suit
         seed=FLAGS.seed,
-        labeler=labeler)
+        labeler=labeler,
+        filter_train=is_training)
 
     batch_size = FLAGS.train_batch_size if is_training else FLAGS.eval_batch_size
 
@@ -170,8 +171,10 @@ def make_dataset(is_training: bool, do_masking=False):
 
     # format expected by Keras for training
     if is_training:
-        dataset = filter_training(dataset)
-        dataset = dataset.map(_keras_format)
+        # dataset = filter_training(dataset)
+        dataset = dataset.map(_keras_format, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    dataset = dataset.prefetch(4)
 
     return dataset
 
@@ -215,7 +218,7 @@ def main(_):
     bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
     epochs = FLAGS.num_train_epochs
     # train_data_size = 11778
-    train_data_size = 5000
+    train_data_size = 90000
     steps_per_epoch = int(train_data_size / FLAGS.train_batch_size)  # 368
     warmup_steps = int(epochs * train_data_size * 0.1 / FLAGS.train_batch_size)
     initial_lr = FLAGS.learning_rate
@@ -258,9 +261,7 @@ def main(_):
         return dragon_model, core_model
 
     if (FLAGS.mode == 'train_and_predict') or (FLAGS.mode == 'train_only'): 
-    # if FLAGS.mode == 'train_and_predict': 
         # training. strategy.scope context allows use of multiple devices
-        do_training = False
         with strategy.scope():
             keras_train_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
 

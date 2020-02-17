@@ -180,7 +180,9 @@ def make_dataset(is_training: bool, do_masking=False):
     # format expected by Keras for training
     if is_training:
         dataset = filter_training(dataset)
-        dataset = dataset.map(_keras_format)
+        dataset = dataset.map(_keras_format, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     return dataset
 
@@ -262,7 +264,6 @@ def main(_):
 
     if FLAGS.mode == 'train_and_predict':
         # training. strategy.scope context allows use of multiple devices
-        do_training = False
         with strategy.scope():
             keras_train_data = make_dataset(is_training=True, do_masking=FLAGS.do_masking)
 
