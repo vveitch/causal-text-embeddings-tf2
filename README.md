@@ -30,9 +30,7 @@ Extract to ../pre-trained/uncased_L-12_H-768_A-12
 ```
 
 # Notes
-1. The code requires TensorFlow 2.1. For TensorFlow 2 compatibility, you can coment out the strategy context (or the weighted metrics).
-2. This reference implementation does necessarily reproduce paper results---I haven't messed around w/ relative magnitude of 
-unsupervised and supervised losses
-3. PeerRead data from: github.com/allenai/PeerRead
-4. Model performance is usually significantly improved by doing unsupervised pre-training on your dataset. 
+1. This reference implementation doesn't necessarily reproduce paper results---I haven't messed around w/ weighting of unsupervised and supervised losses
+2. PeerRead data from: github.com/allenai/PeerRead
+3. Model performance is usually significantly improved by doing unsupervised pre-training on your dataset. 
 See PeerRead/model/run_pretraining for how to do this
