@@ -129,7 +129,7 @@ def real():
     print(estimate_df.round(2))
 
 def main():
-    # buzzy_baselines()
+    buzzy_baselines()
     confounding_level()
     # real()
 
