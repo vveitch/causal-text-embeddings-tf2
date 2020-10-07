@@ -10,6 +10,8 @@ affected by publicly listing the gender of the author, adjusting for the text of
 This is a reference implementation to make it easier for others to use and build on the project. The official code,
 including instructions to reproduce the experiments, is available [here](https://github.com/blei-lab/causal-text-embeddings). (In Tensorflow 1.13)
 
+There is also a [reference implementation in pytorch.](https://github.com/rpryzant/causal-bert-pytorch)
+
 All code in tf_official is taken from https://github.com/tensorflow/models/tree/master/official 
 (and subject to their liscensing requirements)
 
